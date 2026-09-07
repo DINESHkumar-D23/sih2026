@@ -132,28 +132,116 @@ export function calculateStoppingDistance(
   return parseFloat(dStop.toFixed(1));
 }
 
-// Bailadila Deposit 14-A Geo-bounds for hardware telemetry projection
-export const GEO_BOUNDS = {
-  minLat: 18.602,
-  maxLat: 18.61,
-  minLng: 81.221,
-  maxLng: 81.231,
+// NMDC Mines Geo-bounds for hardware telemetry and satellite projection
+export interface MineSiteInfo {
+  id: string;
+  name: string;
+  subName: string;
+  location: string;
+  state: string;
+  center: [number, number]; // [lat, lng]
+  zoom: number;
+  bounds: {
+    minLat: number;
+    maxLat: number;
+    minLng: number;
+    maxLng: number;
+  };
+  elevationRange: string;
+  grade: string;
+}
+
+export const NMDC_MINES: Record<string, MineSiteInfo> = {
+  '14A': {
+    id: '14A',
+    name: 'Sector 14-A Incline Pit',
+    subName: 'Bailadila Iron Ore Mine, NMDC Ltd',
+    location: 'Kirandul',
+    state: 'Chhattisgarh',
+    center: [18.606, 81.226],
+    zoom: 15,
+    bounds: {
+      minLat: 18.602,
+      maxLat: 18.610,
+      minLng: 81.221,
+      maxLng: 81.231,
+    },
+    elevationRange: 'RL 1,040M - 1,280M',
+    grade: '11% Continuous',
+  },
+  '14C': {
+    id: '14C',
+    name: 'Bailadila 14C Main Plant',
+    subName: 'Dep 5 Sub-Station & Processing Pit',
+    location: 'Kirandul',
+    state: 'Chhattisgarh',
+    center: [18.625, 81.234],
+    zoom: 15,
+    bounds: {
+      minLat: 18.618,
+      maxLat: 18.632,
+      minLng: 81.226,
+      maxLng: 81.242,
+    },
+    elevationRange: 'RL 980M - 1,240M',
+    grade: '9.5% Spiral',
+  },
+  'DEP5': {
+    id: 'DEP5',
+    name: 'Deposit-5 Bacheli Complex',
+    subName: 'Screening Plant, NMDC BIOM Complex',
+    location: 'Bacheli',
+    state: 'Chhattisgarh',
+    center: [18.687, 81.272],
+    zoom: 15,
+    bounds: {
+      minLat: 18.680,
+      maxLat: 18.695,
+      minLng: 81.264,
+      maxLng: 81.280,
+    },
+    elevationRange: 'RL 840M - 1,190M',
+    grade: '8.2% Terraced',
+  },
+  'DONI': {
+    id: 'DONI',
+    name: 'Donimalai Iron Ore Complex',
+    subName: 'NMDC Karnataka Open-Cast Project',
+    location: 'Donimalai / Sandur',
+    state: 'Karnataka',
+    center: [15.064, 76.618],
+    zoom: 14,
+    bounds: {
+      minLat: 15.050,
+      maxLat: 15.078,
+      minLng: 76.602,
+      maxLng: 76.634,
+    },
+    elevationRange: 'RL 720M - 1,010M',
+    grade: '7.8% Bench',
+  },
 };
 
-export function projectGpsToCanvas(lat: number, lng: number): { x: number; y: number } {
-  const normX = (lng - GEO_BOUNDS.minLng) / (GEO_BOUNDS.maxLng - GEO_BOUNDS.minLng);
-  const normY = 1 - (lat - GEO_BOUNDS.minLat) / (GEO_BOUNDS.maxLat - GEO_BOUNDS.minLat);
+// Default Bailadila Deposit 14-A Geo-bounds for hardware telemetry projection
+export const GEO_BOUNDS = NMDC_MINES['14A'].bounds;
+
+export function projectGpsToCanvas(lat: number, lng: number, mineId: string = '14A'): { x: number; y: number } {
+  const bounds = NMDC_MINES[mineId]?.bounds || GEO_BOUNDS;
+  const normX = (lng - bounds.minLng) / (bounds.maxLng - bounds.minLng);
+  const normY = 1 - (lat - bounds.minLat) / (bounds.maxLat - bounds.minLat);
   return {
     x: Math.max(20, Math.min(780, 50 + normX * 700)),
     y: Math.max(20, Math.min(580, 50 + normY * 500)),
   };
 }
 
-export function projectCanvasToGps(x: number, y: number): { lat: number; lng: number } {
+export function projectCanvasToGps(x: number, y: number, mineId: string = '14A'): { lat: number; lng: number } {
+  const bounds = NMDC_MINES[mineId]?.bounds || GEO_BOUNDS;
   const normX = (x - 50) / 700;
   const normY = (y - 50) / 500;
-  const lng = GEO_BOUNDS.minLng + normX * (GEO_BOUNDS.maxLng - GEO_BOUNDS.minLng);
-  const lat = GEO_BOUNDS.maxLat - normY * (GEO_BOUNDS.maxLat - GEO_BOUNDS.minLat);
+  const lng = bounds.minLng + normX * (bounds.maxLng - bounds.minLng);
+  const lat = bounds.maxLat - normY * (bounds.maxLat - bounds.minLat);
   return { lat, lng };
 }
+
 
