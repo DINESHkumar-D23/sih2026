@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TrendingUp,
   AlertTriangle,
@@ -12,9 +12,23 @@ import {
   Eye,
   Maximize2,
   Navigation,
+  Mountain,
+  Satellite,
+  Activity,
+  CloudFog,
+  Droplets,
+  RotateCcw,
+  Compass,
 } from 'lucide-react';
-import { VehicleTwin, ConflictIncident, RadioToast, UserRole } from '../types';
-import { INCLINE_TRACK, PASSING_BAY_ALPHA, PASSING_BAY_BETA } from '../utils/kinematics';
+import L from 'leaflet';
+import { VehicleTwin, ConflictIncident, RadioToast, UserRole, WeatherData } from '../types';
+import {
+  INCLINE_TRACK,
+  PASSING_BAY_ALPHA,
+  PASSING_BAY_BETA,
+  projectCanvasToGps,
+  GEO_BOUNDS,
+} from '../utils/kinematics';
 
 interface RadarScreenProps {
   vehicles: VehicleTwin[];
@@ -27,6 +41,7 @@ interface RadarScreenProps {
   targetTons?: number;
   radioNotice: RadioToast | null;
   userRole?: UserRole;
+  weather?: WeatherData;
 }
 
 export const RadarScreen: React.FC<RadarScreenProps> = ({
@@ -40,7 +55,10 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   targetTons = 40000,
   radioNotice,
   userRole = 'dispatcher',
+  weather,
 }) => {
+  // Display Mode: Topographic Twin (Realistic), Satellite Orthophoto (GIS), or Tactical Radar (CAD)
+  const [displayMode, setDisplayMode] = useState<'topographic' | 'satellite' | 'radar'>('topographic');
   const [viewPreset, setViewPreset] = useState<'overview' | 'hairpin3' | 'crusher'>('overview');
   const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'warning' | 'queued' | 'hauling'>('all');
 
@@ -48,6 +66,14 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   const [showBenchLines, setShowBenchLines] = useState(true);
   const [showPassingBays, setShowPassingBays] = useState(true);
   const [showBrakingRings, setShowBrakingRings] = useState(true);
+  const [showWeatherFx, setShowWeatherFx] = useState(true);
+  const [showHeadlights, setShowHeadlights] = useState(true);
+
+  // Leaflet references
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const vehicleMarkersRef = useRef<{ [key: string]: L.Marker }>({});
+  const conflictLineRef = useRef<L.Polyline | null>(null);
 
   const isDispatcher = userRole === 'dispatcher';
 
@@ -68,7 +94,12 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   const filteredVehicles = vehicles.filter((v) => {
     if (statusFilter === 'critical') return v.hazardEnvelope || v.mustHoldByMTC;
     if (statusFilter === 'warning') return v.state === 'HELD_BY_MTC';
-    if (statusFilter === 'queued') return v.state === 'QUEUING' || v.state === 'LOADING_AT_SHOVEL' || v.state === 'DISCHARGING_AT_CRUSHER';
+    if (statusFilter === 'queued')
+      return (
+        v.state === 'QUEUING' ||
+        v.state === 'LOADING_AT_SHOVEL' ||
+        v.state === 'DISCHARGING_AT_CRUSHER'
+      );
     if (statusFilter === 'hauling') return v.state === 'INCLINE_HAUL' || v.state === 'EMPTY';
     return true;
   });
@@ -79,6 +110,188 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   const trackPathData = INCLINE_TRACK.points.reduce((acc, pt, idx) => {
     return idx === 0 ? `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}` : `${acc} L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
   }, '');
+
+  // --------------------------------------------------------------------------
+  // LEAFLET SATELLITE MAP INITIALIZATION & UPDATE
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    if (!mapInstanceRef.current) {
+      // Center on Bailadila Deposit 14
+      const centerLat = (GEO_BOUNDS.minLat + GEO_BOUNDS.maxLat) / 2;
+      const centerLng = (GEO_BOUNDS.minLng + GEO_BOUNDS.maxLng) / 2;
+
+      const map = L.map(mapContainerRef.current, {
+        center: [centerLat, centerLng],
+        zoom: 15,
+        zoomControl: false,
+        attributionControl: false,
+      });
+
+      L.control.zoom({ position: 'topright' }).addTo(map);
+
+      // High-resolution Esri World Imagery (Satellite)
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          attribution: 'Esri World Imagery &mdash; Bailadila Sector 14-A',
+        }
+      ).addTo(map);
+
+      // Haul Road Incline Path Polyline
+      const pathGps = INCLINE_TRACK.points.map((pt) => {
+        const { lat, lng } = projectCanvasToGps(pt.x, pt.y);
+        return [lat, lng] as [number, number];
+      });
+
+      // Road Glow & Line
+      L.polyline(pathGps, {
+        color: '#f59e0b',
+        weight: 6,
+        opacity: 0.85,
+        dashArray: '8, 8',
+      }).addTo(map);
+
+      // Shovel 01 Marker
+      const shovelGps = projectCanvasToGps(120, 520);
+      const shovelIcon = L.divIcon({
+        className: 'leaflet-shovel-icon',
+        html: `
+          <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#052e16;border:2px solid #4ade80;color:#86efac;font-family:monospace;font-size:10px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.6);">
+            SHV1
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+      L.marker([shovelGps.lat, shovelGps.lng], { icon: shovelIcon })
+        .addTo(map)
+        .bindPopup('<b style="color:black;font-family:monospace;">SHOVEL 01 (PIT FLOOR RL 1,040M)</b>');
+
+      // Crusher 1 Marker
+      const crusherGps = projectCanvasToGps(580, 50);
+      const crusherIcon = L.divIcon({
+        className: 'leaflet-crusher-icon',
+        html: `
+          <div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:#172554;border:2px solid #60a5fa;color:#93c5fd;font-family:monospace;font-size:10px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.6);">
+            CRU1
+          </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+      });
+      L.marker([crusherGps.lat, crusherGps.lng], { icon: crusherIcon })
+        .addTo(map)
+        .bindPopup('<b style="color:black;font-family:monospace;">PRIMARY CRUSHER 1 HOPPER (RL 1,280M)</b>');
+
+      // Passing Bays
+      const bayAlphaGps = projectCanvasToGps(PASSING_BAY_ALPHA.x, PASSING_BAY_ALPHA.y);
+      const bayBetaGps = projectCanvasToGps(PASSING_BAY_BETA.x, PASSING_BAY_BETA.y);
+
+      const makeBayIcon = (name: string) =>
+        L.divIcon({
+          className: 'leaflet-bay-icon',
+          html: `<div style="padding:2px 6px;background:rgba(23,37,84,0.9);border:1px solid #60a5fa;color:#bfdbfe;font-family:monospace;font-size:9px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.7);">${name}</div>`,
+          iconSize: [80, 20],
+          iconAnchor: [40, 10],
+        });
+
+      L.marker([bayAlphaGps.lat, bayAlphaGps.lng], { icon: makeBayIcon('BAY 07-B (ALPHA)') }).addTo(map);
+      L.marker([bayBetaGps.lat, bayBetaGps.lng], { icon: makeBayIcon('BAY 04-A (BETA)') }).addTo(map);
+
+      mapInstanceRef.current = map;
+    }
+  }, []);
+
+  // Update vehicles on the Leaflet map
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    vehicles.forEach((v) => {
+      const { lat, lng } = projectCanvasToGps(v.x, v.y);
+      const isHazard = v.hazardEnvelope;
+      const isHeld = v.state === 'HELD_BY_MTC';
+      const color = isHazard ? '#ef4444' : isHeld ? '#eab308' : v.payloadTons > 0 ? '#3b82f6' : '#22c55e';
+
+      const iconHtml = `
+        <div style="transform: rotate(${v.headingDeg}deg); position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+          <!-- Truck body -->
+          <div style="width: 24px; height: 32px; border-radius: 2px; border: 2px solid ${color}; background: ${isHazard ? '#7f1d1d' : '#09090b'}; box-shadow: 0 0 10px ${color}80; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 2px 0;">
+            <div style="width: 14px; height: 8px; background: #facc15; border-radius: 1px;"></div>
+            <div style="width: 16px; height: 12px; background: ${v.payloadTons > 0 ? '#881337' : '#44403c'}; border-radius: 1px;"></div>
+          </div>
+          <!-- Label tag -->
+          <div style="transform: rotate(-${v.headingDeg}deg); position: absolute; top: -20px; padding: 1px 4px; background: rgba(0,0,0,0.9); font-size: 10px; font-family: monospace; font-weight: bold; color: white; border: 1px solid ${color}; white-space: nowrap;">
+            ${v.id} ${v.speedKmh.toFixed(0)}k
+          </div>
+        </div>
+      `;
+
+      const customIcon = L.divIcon({
+        className: 'leaflet-custom-vehicle',
+        html: iconHtml,
+        iconSize: [28, 36],
+        iconAnchor: [14, 18],
+      });
+
+      if (vehicleMarkersRef.current[v.id]) {
+        vehicleMarkersRef.current[v.id].setLatLng([lat, lng]);
+        vehicleMarkersRef.current[v.id].setIcon(customIcon);
+      } else {
+        const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+        marker.on('click', () => onSelectVehicle(v));
+        vehicleMarkersRef.current[v.id] = marker;
+      }
+    });
+
+    // Handle conflict line on satellite map
+    if (activeConflict && activeConflict.active) {
+      const vA = vehicles.find((v) => v.id === activeConflict.vehicleAId);
+      const vB = vehicles.find((v) => v.id === activeConflict.vehicleBId);
+      if (vA && vB) {
+        const gpsA = projectCanvasToGps(vA.x, vA.y);
+        const gpsB = projectCanvasToGps(vB.x, vB.y);
+        if (conflictLineRef.current) {
+          conflictLineRef.current.setLatLngs([
+            [gpsA.lat, gpsA.lng],
+            [gpsB.lat, gpsB.lng],
+          ]);
+        } else {
+          conflictLineRef.current = L.polyline(
+            [
+              [gpsA.lat, gpsA.lng],
+              [gpsB.lat, gpsB.lng],
+            ],
+            { color: '#ef4444', weight: 3, dashArray: '5, 5' }
+          ).addTo(map);
+        }
+      }
+    } else if (conflictLineRef.current) {
+      conflictLineRef.current.remove();
+      conflictLineRef.current = null;
+    }
+  }, [vehicles, activeConflict, onSelectVehicle]);
+
+  // Invalidate Leaflet size when switching to satellite mode
+  useEffect(() => {
+    if (displayMode === 'satellite' && mapInstanceRef.current) {
+      const timer = setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [displayMode]);
+
+  // Reset Leaflet to Bailadila Pit bounds
+  const handleResetSatelliteView = () => {
+    if (!mapInstanceRef.current) return;
+    const centerLat = (GEO_BOUNDS.minLat + GEO_BOUNDS.maxLat) / 2;
+    const centerLng = (GEO_BOUNDS.minLng + GEO_BOUNDS.maxLng) / 2;
+    mapInstanceRef.current.setView([centerLat, centerLng], 15, { animate: true });
+  };
 
   return (
     <div className="flex flex-col w-full text-[#E0E0E0] select-none pb-3 font-sans">
@@ -211,7 +424,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
 
           {/* CARD 3: CAMERA & LAYER CONTROLS */}
           <div className="bg-[#0A0A0B] border border-[#333338] p-3 flex flex-col gap-2.5 font-mono text-xs">
-            <span className="text-xs text-slate-300 font-bold uppercase">CANVAS PRESET &amp; LAYERS</span>
+            <span className="text-xs text-slate-300 font-bold uppercase">CAMERA PRESET &amp; LAYERS</span>
             <div className="grid grid-cols-3 gap-1.5">
               {(['overview', 'hairpin3', 'crusher'] as const).map((preset) => (
                 <button
@@ -255,7 +468,25 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                   onChange={(e) => setShowBrakingRings(e.target.checked)}
                   className="cursor-pointer"
                 />
-                <span>Dynamic Stopping Distance Envelopes</span>
+                <span>Dynamic Stopping Envelopes</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
+                <input
+                  type="checkbox"
+                  checked={showHeadlights}
+                  onChange={(e) => setShowHeadlights(e.target.checked)}
+                  className="cursor-pointer"
+                />
+                <span>Volumetric Truck Headlights</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
+                <input
+                  type="checkbox"
+                  checked={showWeatherFx}
+                  onChange={(e) => setShowWeatherFx(e.target.checked)}
+                  className="cursor-pointer"
+                />
+                <span>Monsoon Mist &amp; Weather FX</span>
               </label>
             </div>
           </div>
@@ -263,321 +494,824 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
 
         {/* ==================== CENTER COLUMN (col-span-6) ==================== */}
         <div className="lg:col-span-6 flex flex-col gap-2">
-          {/* RADAR SVG DISPLAY CANVAS */}
+          {/* DISPLAY CANVAS CONTAINER */}
           <div className="bg-[#050507] border border-[#333338] relative overflow-hidden flex flex-col">
-            <div className="px-3.5 py-2 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
+            {/* Header with Mode Switcher */}
+            <div className="px-3.5 py-2 bg-[#0F0F10] border-b border-[#333338] flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping" />
                 <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
-                  DIGITAL TWIN // BAILADILA SECTOR 14-A HAUL ROAD
+                  BAILADILA SECTOR 14-A // HAULAGE DISPATCH
                 </span>
               </div>
-              <span className="font-mono text-xs text-slate-300 font-semibold">
-                CATMULL-ROM SPLINE // 11% GRADE
-              </span>
+
+              {/* Visualization Mode Selector */}
+              <div className="flex items-center gap-1 bg-black p-0.5 border border-[#333338] rounded-xs font-mono text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setDisplayMode('topographic')}
+                  className={`flex items-center gap-1.5 px-2 py-1 font-bold transition-all cursor-pointer ${
+                    displayMode === 'topographic'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Photorealistic Open-Pit Topographic Digital Twin"
+                >
+                  <Mountain className="w-3.5 h-3.5" />
+                  <span>TOPOGRAPHIC</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDisplayMode('satellite')}
+                  className={`flex items-center gap-1.5 px-2 py-1 font-bold transition-all cursor-pointer ${
+                    displayMode === 'satellite'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Live Satellite Orthophoto of Bailadila (Esri World Imagery)"
+                >
+                  <Satellite className="w-3.5 h-3.5" />
+                  <span>SATELLITE</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDisplayMode('radar')}
+                  className={`flex items-center gap-1.5 px-2 py-1 font-bold transition-all cursor-pointer ${
+                    displayMode === 'radar'
+                      ? 'bg-slate-700 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Tactical CAD Wireframe Radar"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>RADAR CAD</span>
+                </button>
+              </div>
             </div>
 
-            <div className="relative w-full aspect-4/3 bg-radial from-[#0d1117] to-[#050507] overflow-hidden">
-              <svg
-                viewBox={getViewBox()}
-                className="w-full h-full cursor-crosshair"
-                role="img"
-                aria-label="Interactive Haul Road Radar Map for Sector 14-A"
+            {/* Viewport Area */}
+            <div className="relative w-full aspect-4/3 bg-[#050507] overflow-hidden">
+              {/* ========================================================================= */}
+              {/* SATELLITE ORTHOPHOTO VIEW (LEAFLET + ESRI SATELLITE) */}
+              {/* ========================================================================= */}
+              <div
+                style={{ display: displayMode === 'satellite' ? 'block' : 'none' }}
+                className="w-full h-full relative"
               >
-                <defs>
-                  {/* Grid Pattern */}
-                  <pattern id="radarGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#222834" strokeWidth="0.6" />
-                  </pattern>
+                <div ref={mapContainerRef} className="w-full h-full bg-[#0a0a0b]" />
 
-                  {/* Hazard Pulse Filter */}
-                  <filter id="hazardGlow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
-                    <feMerge>
-                      <feMergeNode />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
+                {/* Satellite HUD Overlay */}
+                <div className="absolute top-2 left-2 z-[400] bg-black/85 border border-[#333338] px-3 py-2 flex flex-col gap-0.5 font-mono text-[11px] backdrop-blur-xs shadow-xl">
+                  <div className="flex items-center gap-2 text-blue-400 font-bold">
+                    <Satellite className="w-3.5 h-3.5 animate-pulse" />
+                    <span>ESRI WORLD IMAGERY // BAILADILA DEPOSIT 14</span>
+                  </div>
+                  <div className="text-slate-300">
+                    LAT: 18.606°N | LON: 81.226°E | DATUM: WGS84
+                  </div>
+                  <div className="text-slate-400 text-[10px]">
+                    ELEVATION RANGE: RL 1,040M - 1,280M | GRADE: 11%
+                  </div>
+                </div>
 
-                {/* Radar Coordinate Grid */}
-                <rect x="0" y="0" width="800" height="600" fill="url(#radarGrid)" />
+                {/* Reset Satellite Center Button */}
+                <button
+                  type="button"
+                  onClick={handleResetSatelliteView}
+                  className="absolute bottom-3 right-3 z-[400] bg-black/90 hover:bg-[#16161a] border border-[#44444c] text-white px-2.5 py-1.5 flex items-center gap-1.5 font-mono text-xs font-bold cursor-pointer transition-colors shadow-lg"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-blue-400" />
+                  <span>CENTER PIT</span>
+                </button>
+              </div>
 
-                {/* Topographic Bench Contour Lines */}
-                {showBenchLines && (
-                  <g opacity="0.65" stroke="#475569" strokeWidth="1" fill="none" strokeDasharray="4,4">
-                    {/* Pit Floor Bench 09 */}
-                    <ellipse cx="120" cy="520" rx="90" ry="50" />
-                    <text x="125" y="555" fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,040M (PIT FLOOR)</text>
+              {/* ========================================================================= */}
+              {/* TOPOGRAPHIC DIGITAL TWIN & RADAR CAD VIEW (SVG) */}
+              {/* ========================================================================= */}
+              <div
+                style={{ display: displayMode !== 'satellite' ? 'block' : 'none' }}
+                className="w-full h-full relative"
+              >
+                <svg
+                  viewBox={getViewBox()}
+                  className="w-full h-full cursor-crosshair"
+                  role="img"
+                  aria-label="NMDC Bailadila Sector 14-A Haul Dispatch Digital Twin"
+                >
+                  <defs>
+                    {/* Radar Grid Pattern */}
+                    <pattern id="radarGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#222834" strokeWidth="0.6" />
+                    </pattern>
 
-                    {/* Bench 07 */}
-                    <ellipse cx="260" cy="440" rx="140" ry="70" />
-                    <text x="265" y="480" fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,120M (BENCH 07)</text>
+                    {/* Terraced Open Pit Elevation Gradient */}
+                    <radialGradient id="pitDepthGradient" cx="20%" cy="85%" r="90%">
+                      <stop offset="0%" stopColor="#140b07" />
+                      <stop offset="35%" stopColor="#24130c" />
+                      <stop offset="65%" stopColor="#1c1815" />
+                      <stop offset="100%" stopColor="#0a0a0c" />
+                    </radialGradient>
 
-                    {/* Hairpin 3 Switchback Ridge */}
-                    <ellipse cx="440" cy="280" rx="180" ry="90" />
-                    <text x="445" y="325" fill="#fca5a5" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,180M (HAIRPIN 3 BLIND APEX)</text>
+                    {/* Iron Ore Hematite Bench Shading */}
+                    <linearGradient id="benchShadeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#451a03" stopOpacity="0.85" />
+                      <stop offset="50%" stopColor="#291104" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#150a04" stopOpacity="0.95" />
+                    </linearGradient>
 
-                    {/* Surface Rim */}
-                    <ellipse cx="560" cy="80" rx="160" ry="70" />
-                    <text x="565" y="115" fill="#93c5fd" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,280M (CRUSHER RIM)</text>
-                  </g>
-                )}
+                    {/* Drainage Sump Water Pool Gradient */}
+                    <radialGradient id="sumpWaterGrad" cx="40%" cy="40%" r="60%">
+                      <stop offset="0%" stopColor="#0284c7" stopOpacity="0.85" />
+                      <stop offset="60%" stopColor="#0369a1" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#0c4a6e" stopOpacity="0.95" />
+                    </radialGradient>
 
-                {/* Passing Bays */}
-                {showPassingBays && (
-                  <g>
-                    {/* Bay Alpha near Hairpin 3 */}
-                    <rect
-                      x={PASSING_BAY_ALPHA.x - 22}
-                      y={PASSING_BAY_ALPHA.y - 14}
-                      width="44"
-                      height="28"
-                      fill="#0e1726"
-                      stroke="#3b82f6"
-                      strokeWidth="1.5"
-                      strokeDasharray="3,3"
-                      rx="2"
-                    />
-                    <text
-                      x={PASSING_BAY_ALPHA.x}
-                      y={PASSING_BAY_ALPHA.y + 22}
-                      textAnchor="middle"
-                      fill="#93c5fd"
-                      fontSize="11"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      PASSING BAY 07-B (ALPHA)
-                    </text>
+                    {/* Forward Truck Headlight Volumetric Light Cone */}
+                    <linearGradient id="headlightBeam" x1="0%" y1="100%" x2="0%" y2="0%">
+                      <stop offset="0%" stopColor="#fef08a" stopOpacity="0.8" />
+                      <stop offset="40%" stopColor="#fef9c3" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="#fef08a" stopOpacity="0" />
+                    </linearGradient>
 
-                    {/* Bay Beta near Bench 07 */}
-                    <rect
-                      x={PASSING_BAY_BETA.x - 20}
-                      y={PASSING_BAY_BETA.y - 14}
-                      width="40"
-                      height="28"
-                      fill="#0e1726"
-                      stroke="#3b82f6"
-                      strokeWidth="1.5"
-                      strokeDasharray="3,3"
-                      rx="2"
-                    />
-                    <text
-                      x={PASSING_BAY_BETA.x}
-                      y={PASSING_BAY_BETA.y + 22}
-                      textAnchor="middle"
-                      fill="#93c5fd"
-                      fontSize="11"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                    >
-                      PASSING BAY 04-A (BETA)
-                    </text>
-                  </g>
-                )}
+                    {/* Crushed Ore Stockpile Gradient */}
+                    <radialGradient id="orePileGrad" cx="35%" cy="35%" r="65%">
+                      <stop offset="0%" stopColor="#991b1b" />
+                      <stop offset="70%" stopColor="#450a0a" />
+                      <stop offset="100%" stopColor="#180505" />
+                    </radialGradient>
 
-                {/* Incline Track Roadbed & Spine */}
-                <path
-                  d={trackPathData}
-                  fill="none"
-                  stroke="#1e293b"
-                  strokeWidth="18"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d={trackPathData}
-                  fill="none"
-                  stroke="#334155"
-                  strokeWidth="12"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d={trackPathData}
-                  fill="none"
-                  stroke="#64748b"
-                  strokeWidth="2"
-                  strokeDasharray="6,6"
-                  strokeLinecap="round"
-                />
+                    {/* Soft Drop Shadow for Bench Cuts */}
+                    <filter id="benchCutShadow" x="-10%" y="-10%" width="130%" height="130%">
+                      <feDropShadow dx="3" dy="4" stdDeviation="5" floodColor="#000000" floodOpacity="0.85" />
+                    </filter>
 
-                {/* Terminal Points: Shovels & Crushers */}
-                {/* Pit Floor Shovel */}
-                <circle cx="120" cy="520" r="16" fill="#14532d" stroke="#22c55e" strokeWidth="2" />
-                <text x="120" y="525" textAnchor="middle" fill="#ffffff" fontSize="10.5" fontWeight="bold">SHV-01</text>
+                    {/* Hazard Pulse Glow */}
+                    <filter id="hazardGlow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
+                      <feMerge>
+                        <feMergeNode />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
 
-                {/* Crusher 1 Hopper */}
-                <polygon points="560,32 600,32 610,68 550,68" fill="#1e3a8a" stroke="#3b82f6" strokeWidth="2" />
-                <text x="580" y="54" textAnchor="middle" fill="#ffffff" fontSize="10.5" fontWeight="bold">CRUSHER 1</text>
+                  {/* ------------------------------------------------------------- */}
+                  {/* BACKGROUND TERRAIN */}
+                  {/* ------------------------------------------------------------- */}
+                  {displayMode === 'topographic' ? (
+                    // Photorealistic Terraced Open-Pit Background
+                    <rect x="0" y="0" width="800" height="600" fill="url(#pitDepthGradient)" />
+                  ) : (
+                    // Tactical CAD Wireframe Background
+                    <>
+                      <rect x="0" y="0" width="800" height="600" fill="#07090e" />
+                      <rect x="0" y="0" width="800" height="600" fill="url(#radarGrid)" />
+                    </>
+                  )}
 
-                {/* Active Conflict Closing Line */}
-                {activeConflict && activeConflict.active && (() => {
-                  const vA = vehicles.find((v) => v.id === activeConflict.vehicleAId);
-                  const vB = vehicles.find((v) => v.id === activeConflict.vehicleBId);
-                  if (!vA || !vB) return null;
-                  const midX = (vA.x + vB.x) / 2;
-                  const midY = (vA.y + vB.y) / 2;
-
-                  return (
-                    <g>
-                      <line
-                        x1={vA.x}
-                        y1={vA.y}
-                        x2={vB.x}
-                        y2={vB.y}
-                        stroke="#ef4444"
-                        strokeWidth="2.5"
-                        strokeDasharray="5,5"
-                      />
-                      <rect
-                        x={midX - 35}
-                        y={midY - 12}
-                        width="70"
-                        height="24"
-                        fill="#000000"
-                        stroke="#ef4444"
+                  {/* ------------------------------------------------------------- */}
+                  {/* TOPOGRAPHIC BENCH TERRACES (RL 1040M - 1280M) */}
+                  {/* ------------------------------------------------------------- */}
+                  {displayMode === 'topographic' && (
+                    <g filter="url(#benchCutShadow)">
+                      {/* Bench 04 Upper Rim Cut (RL 1220m) */}
+                      <path
+                        d="M 280,0 Q 420,70 620,60 Q 750,110 800,160 L 800,0 Z"
+                        fill="#1f140e"
+                        stroke="#451a03"
                         strokeWidth="1.5"
-                        rx="2"
                       />
+
+                      {/* Hairpin 3 Switchback Ridge (RL 1180m) */}
+                      <path
+                        d="M 220,180 Q 440,160 560,250 Q 640,320 540,410 Q 400,340 310,310 Z"
+                        fill="#2a160d"
+                        stroke="#542408"
+                        strokeWidth="2"
+                      />
+
+                      {/* Bench 07 Mid Bench (RL 1120m) */}
+                      <path
+                        d="M 60,350 Q 220,320 380,410 Q 420,510 260,560 Q 140,550 40,460 Z"
+                        fill="#26120a"
+                        stroke="#5c2609"
+                        strokeWidth="2"
+                      />
+
+                      {/* Bench 09 Pit Floor (RL 1040m) */}
+                      <ellipse
+                        cx="120"
+                        cy="520"
+                        rx="105"
+                        ry="62"
+                        fill="#180b06"
+                        stroke="#78350f"
+                        strokeWidth="2.5"
+                      />
+
+                      {/* Pit Floor Water Sump (Bench 09) */}
+                      <g>
+                        <ellipse
+                          cx="90"
+                          cy="550"
+                          rx="44"
+                          ry="24"
+                          fill="url(#sumpWaterGrad)"
+                          stroke="#38bdf8"
+                          strokeWidth="1.2"
+                        />
+                        <ellipse cx="90" cy="550" rx="34" ry="16" fill="none" stroke="#7dd3fc" strokeWidth="0.8" opacity="0.6" />
+                        <ellipse cx="90" cy="550" rx="20" ry="8" fill="none" stroke="#bae6fd" strokeWidth="0.6" opacity="0.4" />
+                        <text
+                          x="90"
+                          y="554"
+                          textAnchor="middle"
+                          fill="#f0f9ff"
+                          fontSize="9"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          SUMP-09
+                        </text>
+                      </g>
+                    </g>
+                  )}
+
+                  {/* Topographic Bench Contour Lines (Toggleable) */}
+                  {showBenchLines && (
+                    <g
+                      opacity={displayMode === 'topographic' ? 0.75 : 0.65}
+                      stroke={displayMode === 'topographic' ? '#b45309' : '#475569'}
+                      strokeWidth={displayMode === 'topographic' ? 1.2 : 1}
+                      fill="none"
+                      strokeDasharray={displayMode === 'topographic' ? '6,4' : '4,4'}
+                    >
+                      {/* Pit Floor Bench 09 */}
+                      <ellipse cx="120" cy="520" rx="90" ry="50" />
                       <text
-                        x={midX}
-                        y={midY + 4}
-                        textAnchor="middle"
-                        fill="#fca5a5"
-                        fontSize="11"
-                        fontFamily="monospace"
+                        x="125"
+                        y="555"
+                        fill={displayMode === 'topographic' ? '#fbbf24' : '#cbd5e1'}
+                        fontSize="10.5"
                         fontWeight="bold"
+                        fontFamily="monospace"
                       >
-                        {activeConflict.closingDistanceM}m UWB
+                        RL 1,040M (PIT FLOOR &amp; SUMP)
+                      </text>
+
+                      {/* Bench 07 */}
+                      <ellipse cx="260" cy="440" rx="140" ry="70" />
+                      <text
+                        x="265"
+                        y="480"
+                        fill={displayMode === 'topographic' ? '#fbbf24' : '#cbd5e1'}
+                        fontSize="10.5"
+                        fontWeight="bold"
+                        fontFamily="monospace"
+                      >
+                        RL 1,120M (BENCH 07 HAUL RAMP)
+                      </text>
+
+                      {/* Hairpin 3 Switchback Ridge */}
+                      <ellipse cx="440" cy="280" rx="180" ry="90" />
+                      <text
+                        x="445"
+                        y="325"
+                        fill={displayMode === 'topographic' ? '#f87171' : '#fca5a5'}
+                        fontSize="10.5"
+                        fontWeight="bold"
+                        fontFamily="monospace"
+                      >
+                        RL 1,180M (HAIRPIN 3 BLIND APEX)
+                      </text>
+
+                      {/* Surface Rim */}
+                      <ellipse cx="560" cy="80" rx="160" ry="70" />
+                      <text
+                        x="565"
+                        y="115"
+                        fill={displayMode === 'topographic' ? '#93c5fd' : '#93c5fd'}
+                        fontSize="10.5"
+                        fontWeight="bold"
+                        fontFamily="monospace"
+                      >
+                        RL 1,280M (SURFACE CRUSHER RIM)
                       </text>
                     </g>
-                  );
-                })()}
+                  )}
 
-                {/* Vehicle Marker Render Loop */}
-                {vehicles.map((v) => {
-                  const isSelected = false;
-                  const isHazard = v.hazardEnvelope;
-                  const isHeld = v.state === 'HELD_BY_MTC';
-                  const isDownhill = v.direction === -1;
-
-                  // Vehicle marker color
-                  const markerColor = isHazard
-                    ? '#ef4444'
-                    : isHeld
-                    ? '#eab308'
-                    : v.payloadTons > 0
-                    ? '#3b82f6'
-                    : '#22c55e';
-
-                  return (
-                    <g
-                      key={v.id}
-                      onClick={() => onSelectVehicle(v)}
-                      className="cursor-pointer group"
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Inspect vehicle ${v.id}, speed ${v.speedKmh.toFixed(1)} km/h`}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          onSelectVehicle(v);
-                        }
-                      }}
-                    >
-                      {/* Dynamic Braking Circle */}
-                      {showBrakingRings && (
-                        <circle
-                          cx={v.x}
-                          cy={v.y}
-                          r={Math.max(12, v.dStopMeters * 0.9)}
-                          fill={isHazard ? 'rgba(239, 68, 68, 0.2)' : 'none'}
-                          stroke={markerColor}
+                  {/* ------------------------------------------------------------- */}
+                  {/* PASSING BAYS */}
+                  {/* ------------------------------------------------------------- */}
+                  {showPassingBays && (
+                    <g>
+                      {/* Bay Alpha near Hairpin 3 */}
+                      <g>
+                        {/* Turnout Hardstand Gravel Base */}
+                        <polygon
+                          points={`${PASSING_BAY_ALPHA.x - 30},${PASSING_BAY_ALPHA.y - 18} ${PASSING_BAY_ALPHA.x + 30},${PASSING_BAY_ALPHA.y - 18} ${PASSING_BAY_ALPHA.x + 24},${PASSING_BAY_ALPHA.y + 16} ${PASSING_BAY_ALPHA.x - 24},${PASSING_BAY_ALPHA.y + 16}`}
+                          fill={displayMode === 'topographic' ? '#1f130d' : '#0e1726'}
+                          stroke="#3b82f6"
                           strokeWidth="1.5"
-                          strokeDasharray={isHazard ? 'none' : '4,4'}
-                          opacity={isHazard ? 0.9 : 0.5}
-                          className={isHazard ? 'animate-pulse' : ''}
+                          strokeDasharray="4,4"
                         />
-                      )}
-
-                      {/* Hazard Pulsing Envelope */}
-                      {isHazard && (
-                        <circle
-                          cx={v.x}
-                          cy={v.y}
-                          r="24"
-                          fill="none"
-                          stroke="#ef4444"
-                          strokeWidth="2.5"
-                          filter="url(#hazardGlow)"
-                          className="animate-ping"
-                          style={{ animationDuration: '1.4s' }}
-                        />
-                      )}
-
-                      {/* Vehicle Body Representation */}
-                      <circle
-                        cx={v.x}
-                        cy={v.y}
-                        r="11"
-                        fill="#09090b"
-                        stroke={markerColor}
-                        strokeWidth="2.5"
-                        className="transition-colors group-hover:stroke-white"
-                      />
-
-                      {/* Directional Heading Vector */}
-                      <g transform={`translate(${v.x}, ${v.y}) rotate(${v.headingDeg})`}>
-                        <polygon points="0,-16 5,-7 -5,-7" fill={markerColor} />
+                        <text
+                          x={PASSING_BAY_ALPHA.x}
+                          y={PASSING_BAY_ALPHA.y + 26}
+                          textAnchor="middle"
+                          fill="#93c5fd"
+                          fontSize="10"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          BAY 07-B (ALPHA)
+                        </text>
                       </g>
 
-                      {/* Vehicle Label Tag */}
-                      <rect
-                        x={v.x - 27}
-                        y={v.y - 28}
-                        width="54"
-                        height="15"
-                        fill="#000000"
-                        stroke={markerColor}
-                        strokeWidth="1.5"
-                        rx="2"
-                        opacity="0.95"
-                      />
-                      <text
-                        x={v.x}
-                        y={v.y - 17}
-                        textAnchor="middle"
-                        fill={isHazard ? '#fca5a5' : '#ffffff'}
-                        fontSize="10.5"
-                        fontFamily="monospace"
-                        fontWeight="bold"
-                      >
-                        {v.id} {v.speedKmh > 0 ? `${v.speedKmh.toFixed(0)}k` : '0k'}
-                      </text>
+                      {/* Bay Beta near Bench 07 */}
+                      <g>
+                        <polygon
+                          points={`${PASSING_BAY_BETA.x - 26},${PASSING_BAY_BETA.y - 18} ${PASSING_BAY_BETA.x + 26},${PASSING_BAY_BETA.y - 18} ${PASSING_BAY_BETA.x + 20},${PASSING_BAY_BETA.y + 16} ${PASSING_BAY_BETA.x - 20},${PASSING_BAY_BETA.y + 16}`}
+                          fill={displayMode === 'topographic' ? '#1f130d' : '#0e1726'}
+                          stroke="#3b82f6"
+                          strokeWidth="1.5"
+                          strokeDasharray="4,4"
+                        />
+                        <text
+                          x={PASSING_BAY_BETA.x}
+                          y={PASSING_BAY_BETA.y + 26}
+                          textAnchor="middle"
+                          fill="#93c5fd"
+                          fontSize="10"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          BAY 04-A (BETA)
+                        </text>
+                      </g>
                     </g>
-                  );
-                })}
-              </svg>
+                  )}
 
-              {/* Map Legend Overlay */}
-              <div className="absolute bottom-2 left-2 bg-black/90 border border-[#333338] p-2.5 flex flex-col gap-1.5 font-mono text-xs text-slate-200 font-medium backdrop-blur-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-blue-500" />
-                  <span>LOADED UPHILL (RIGHT OF WAY)</span>
+                  {/* ------------------------------------------------------------- */}
+                  {/* HAUL ROADBED WITH DGMS SAFETY BERMS */}
+                  {/* ------------------------------------------------------------- */}
+                  {displayMode === 'topographic' ? (
+                    // Realistic Compacted Laterite Haul Road with Safety Bund Walls
+                    <g>
+                      {/* Wide Excavated Mountain Cut */}
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#1a110a"
+                        strokeWidth="32"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* DGMS Outer Safety Berms (Stone Windrow Walls along drop-offs) */}
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#78350f"
+                        strokeWidth="26"
+                        strokeDasharray="6,4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity="0.8"
+                      />
+
+                      {/* Compacted Crushed Ore Roadbed Base */}
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#3d1d14"
+                        strokeWidth="20"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Dual-Tire Wear Lanes (Laterite Red Soil) */}
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#54271a"
+                        strokeWidth="15"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Center Guideline with Amber Cat-Eye Spacing */}
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#fef08a"
+                        strokeWidth="1.2"
+                        strokeDasharray="6,10"
+                        strokeLinecap="round"
+                        opacity="0.65"
+                      />
+
+                      {/* Hairpin 3 Blind Apex Safety Reflector Barrier */}
+                      <g transform="translate(440, 280)">
+                        <circle r="14" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeDasharray="5,4" />
+                        <text
+                          x="0"
+                          y="4"
+                          textAnchor="middle"
+                          fill="#f87171"
+                          fontSize="9"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          11% GRADE
+                        </text>
+                      </g>
+                    </g>
+                  ) : (
+                    // Tactical CAD Wireframe Road
+                    <g>
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#1e293b"
+                        strokeWidth="18"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#334155"
+                        strokeWidth="12"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d={trackPathData}
+                        fill="none"
+                        stroke="#64748b"
+                        strokeWidth="2"
+                        strokeDasharray="6,6"
+                        strokeLinecap="round"
+                      />
+                    </g>
+                  )}
+
+                  {/* ------------------------------------------------------------- */}
+                  {/* MINING INFRASTRUCTURE: SHOVELS & CRUSHERS */}
+                  {/* ------------------------------------------------------------- */}
+                  {/* Pit Floor Electric Rope Shovel 01 */}
+                  <g transform="translate(120, 520)">
+                    {displayMode === 'topographic' ? (
+                      // Realistic Shovel Excavator Model
+                      <g>
+                        {/* 18m Working Radius Ring */}
+                        <circle r="26" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="3,3" opacity="0.6" />
+                        {/* Blasted Hematite Muckpile */}
+                        <path d="M -30,-15 Q -10,-28 15,-20 Q 30,-5 25,10 Q 0,25 -25,12 Z" fill="#7f1d1d" opacity="0.5" />
+                        {/* Dual Crawler Tracks */}
+                        <rect x="-14" y="-12" width="6" height="24" rx="2" fill="#09090b" stroke="#27272a" strokeWidth="0.8" />
+                        <rect x="8" y="-12" width="6" height="24" rx="2" fill="#09090b" stroke="#27272a" strokeWidth="0.8" />
+                        {/* Revolving Cab Superstructure */}
+                        <rect x="-9" y="-9" width="18" height="18" rx="2" fill="#15803d" stroke="#166534" strokeWidth="1.2" />
+                        {/* Steel Lattice Boom extending outward */}
+                        <line x1="0" y1="0" x2="-20" y2="-18" stroke="#facc15" strokeWidth="3" strokeLinecap="round" />
+                        <rect x="-24" y="-22" width="8" height="8" rx="1" fill="#ca8a04" stroke="#713f12" strokeWidth="1" />
+                        <text x="0" y="4" textAnchor="middle" fill="#ffffff" fontSize="8.5" fontWeight="bold" fontFamily="monospace">
+                          SHV-01
+                        </text>
+                      </g>
+                    ) : (
+                      // Tactical CAD Shovel Circle
+                      <g>
+                        <circle r="16" fill="#14532d" stroke="#22c55e" strokeWidth="2" />
+                        <text y="5" textAnchor="middle" fill="#ffffff" fontSize="10.5" fontWeight="bold">SHV-01</text>
+                      </g>
+                    )}
+                  </g>
+
+                  {/* Surface Primary Crusher 1 Hopper Deck */}
+                  <g transform="translate(580, 50)">
+                    {displayMode === 'topographic' ? (
+                      // Realistic Gyratory Crusher Hopper Station
+                      <g>
+                        {/* ROM Ore Stockpile nearby */}
+                        <ellipse cx="-45" cy="10" rx="26" ry="18" fill="url(#orePileGrad)" stroke="#7f1d1d" strokeWidth="1" />
+                        <text x="-45" y="13" textAnchor="middle" fill="#fca5a5" fontSize="7.5" fontWeight="bold" fontFamily="monospace">
+                          ROM PILE
+                        </text>
+
+                        {/* Concrete Tipping Apron with Hazard Striping */}
+                        <polygon points="-24,18 24,18 30,-14 -30,-14" fill="#292524" stroke="#78716c" strokeWidth="1.5" />
+                        <line x1="-20" y1="16" x2="20" y2="16" stroke="#eab308" strokeWidth="2" strokeDasharray="4,4" />
+
+                        {/* Gyratory Crusher Hopper Pocket & Vibrating Grizzly */}
+                        <rect x="-18" y="-12" width="36" height="24" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="2" />
+                        <line x1="-14" y1="-4" x2="14" y2="-4" stroke="#64748b" strokeWidth="1.5" />
+                        <line x1="-14" y1="2" x2="14" y2="2" stroke="#64748b" strokeWidth="1.5" />
+
+                        {/* Enclosed Overland Conveyor Gantry */}
+                        <line x1="18" y1="0" x2="55" y2="-10" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
+                        <line x1="18" y1="0" x2="55" y2="-10" stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" />
+
+                        <text x="0" y="3" textAnchor="middle" fill="#93c5fd" fontSize="9" fontWeight="bold" fontFamily="monospace">
+                          CRUSHER 1
+                        </text>
+                      </g>
+                    ) : (
+                      // Tactical CAD Crusher Polygon
+                      <g>
+                        <polygon points="-20,-18 20,-18 30,18 -30,18" fill="#1e3a8a" stroke="#3b82f6" strokeWidth="2" />
+                        <text y="4" textAnchor="middle" fill="#ffffff" fontSize="10.5" fontWeight="bold">CRUSHER 1</text>
+                      </g>
+                    )}
+                  </g>
+
+                  {/* ------------------------------------------------------------- */}
+                  {/* ACTIVE CONFLICT CLOSING VECTOR */}
+                  {/* ------------------------------------------------------------- */}
+                  {activeConflict && activeConflict.active && (() => {
+                    const vA = vehicles.find((v) => v.id === activeConflict.vehicleAId);
+                    const vB = vehicles.find((v) => v.id === activeConflict.vehicleBId);
+                    if (!vA || !vB) return null;
+                    const midX = (vA.x + vB.x) / 2;
+                    const midY = (vA.y + vB.y) / 2;
+
+                    return (
+                      <g>
+                        <line
+                          x1={vA.x}
+                          y1={vA.y}
+                          x2={vB.x}
+                          y2={vB.y}
+                          stroke="#ef4444"
+                          strokeWidth="2.5"
+                          strokeDasharray="5,5"
+                        />
+                        <rect
+                          x={midX - 42}
+                          y={midY - 13}
+                          width="84"
+                          height="26"
+                          fill="#000000"
+                          stroke="#ef4444"
+                          strokeWidth="1.5"
+                          rx="3"
+                        />
+                        <text
+                          x={midX}
+                          y={midY + 4}
+                          textAnchor="middle"
+                          fill="#fca5a5"
+                          fontSize="11"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          {activeConflict.closingDistanceM}m UWB
+                        </text>
+                      </g>
+                    );
+                  })()}
+
+                  {/* ------------------------------------------------------------- */}
+                  {/* VEHICLES / HEAVY HAUL TRUCKS */}
+                  {/* ------------------------------------------------------------- */}
+                  {vehicles.map((v) => {
+                    const isHazard = v.hazardEnvelope;
+                    const isHeld = v.state === 'HELD_BY_MTC';
+                    const markerColor = isHazard
+                      ? '#ef4444'
+                      : isHeld
+                      ? '#eab308'
+                      : v.payloadTons > 0
+                      ? '#3b82f6'
+                      : '#22c55e';
+
+                    return (
+                      <g
+                        key={v.id}
+                        onClick={() => onSelectVehicle(v)}
+                        className="cursor-pointer group"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Inspect vehicle ${v.id}, speed ${v.speedKmh.toFixed(1)} km/h`}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            onSelectVehicle(v);
+                          }
+                        }}
+                      >
+                        {/* Forward Volumetric Truck Headlights (Topographic mode) */}
+                        {showHeadlights && displayMode === 'topographic' && (
+                          <g transform={`translate(${v.x}, ${v.y}) rotate(${v.headingDeg})`}>
+                            <polygon
+                              points="0,-12 -28,-75 28,-75"
+                              fill="url(#headlightBeam)"
+                              opacity={weather && weather.visibilityMeters < 80 ? 0.75 : 0.35}
+                            />
+                          </g>
+                        )}
+
+                        {/* Dynamic Braking Distance Envelope */}
+                        {showBrakingRings && (
+                          <circle
+                            cx={v.x}
+                            cy={v.y}
+                            r={Math.max(14, v.dStopMeters * 0.9)}
+                            fill={isHazard ? 'rgba(239, 68, 68, 0.2)' : 'none'}
+                            stroke={markerColor}
+                            strokeWidth="1.5"
+                            strokeDasharray={isHazard ? 'none' : '4,4'}
+                            opacity={isHazard ? 0.9 : 0.5}
+                            className={isHazard ? 'animate-pulse' : ''}
+                          />
+                        )}
+
+                        {/* Hazard Pulsing Envelope */}
+                        {isHazard && (
+                          <circle
+                            cx={v.x}
+                            cy={v.y}
+                            r="26"
+                            fill="none"
+                            stroke="#ef4444"
+                            strokeWidth="2.5"
+                            filter="url(#hazardGlow)"
+                            className="animate-ping"
+                            style={{ animationDuration: '1.4s' }}
+                          />
+                        )}
+
+                        {/* REALISTIC CAT 777D / KOMATSU HD785 TRUCK MODEL */}
+                        {displayMode === 'topographic' ? (
+                          <g transform={`translate(${v.x}, ${v.y}) rotate(${v.headingDeg})`}>
+                            {/* Ground Shadow */}
+                            <rect
+                              x="-12"
+                              y="-18"
+                              width="24"
+                              height="36"
+                              rx="3"
+                              fill="#000000"
+                              opacity="0.65"
+                            />
+
+                            {/* Heavy Mining Tires (2 Front Steer, 4 Dual Rear) */}
+                            <rect x="-14.5" y="-15" width="4" height="9" rx="1.5" fill="#1c1917" stroke="#44403c" strokeWidth="0.8" />
+                            <rect x="10.5" y="-15" width="4" height="9" rx="1.5" fill="#1c1917" stroke="#44403c" strokeWidth="0.8" />
+                            <rect x="-15.5" y="5" width="5.5" height="12" rx="2" fill="#1c1917" stroke="#44403c" strokeWidth="0.8" />
+                            <rect x="10" y="5" width="5.5" height="12" rx="2" fill="#1c1917" stroke="#44403c" strokeWidth="0.8" />
+
+                            {/* Yellow Chassis & Cab Base */}
+                            <rect
+                              x="-11"
+                              y="-16"
+                              width="22"
+                              height="32"
+                              rx="3"
+                              fill={isHazard ? '#7f1d1d' : isHeld ? '#854d0e' : '#ca8a04'}
+                              stroke={markerColor}
+                              strokeWidth="1.5"
+                            />
+
+                            {/* Front Engine Grille */}
+                            <rect x="-7" y="-16" width="14" height="5" rx="1" fill="#292524" />
+                            <line x1="-5" y1="-14" x2="5" y2="-14" stroke="#78716c" strokeWidth="0.8" />
+
+                            {/* Left-Hand Operator Cab with Tinted Glass */}
+                            <rect x="-10" y="-14" width="8" height="9" rx="1.5" fill="#0284c7" stroke="#075985" strokeWidth="1" />
+                            <polygon points="-9,-13 -4,-13 -7,-6 -9,-6" fill="#bae6fd" opacity="0.75" />
+
+                            {/* Dump Body Tray */}
+                            <rect x="-10" y="-4" width="20" height="20" rx="2" fill="#57534e" stroke="#292524" strokeWidth="1.2" />
+
+                            {/* Payload: High-Grade Hematite Red Ore vs Empty Steel Bed */}
+                            {v.payloadTons > 0 ? (
+                              <g>
+                                <path
+                                  d="M -7,-1 Q 0,-3 7,-1 Q 8,8 6,13 Q 0,15 -6,13 Z"
+                                  fill="#881337"
+                                  stroke="#4c0519"
+                                  strokeWidth="0.8"
+                                />
+                                <circle cx="-2" cy="5" r="2" fill="#9f1239" opacity="0.8" />
+                                <circle cx="3" cy="8" r="2" fill="#be123c" opacity="0.9" />
+                              </g>
+                            ) : (
+                              <g opacity="0.5">
+                                <line x1="-7" y1="1" x2="7" y2="1" stroke="#1c1917" strokeWidth="1" />
+                                <line x1="-7" y1="6" x2="7" y2="6" stroke="#1c1917" strokeWidth="1" />
+                                <line x1="-7" y1="11" x2="7" y2="11" stroke="#1c1917" strokeWidth="1" />
+                              </g>
+                            )}
+                          </g>
+                        ) : (
+                          // Tactical CAD Wireframe Circle & Heading Arrow
+                          <g>
+                            <circle
+                              cx={v.x}
+                              cy={v.y}
+                              r="11"
+                              fill="#09090b"
+                              stroke={markerColor}
+                              strokeWidth="2.5"
+                              className="transition-colors group-hover:stroke-white"
+                            />
+                            <g transform={`translate(${v.x}, ${v.y}) rotate(${v.headingDeg})`}>
+                              <polygon points="0,-16 5,-7 -5,-7" fill={markerColor} />
+                            </g>
+                          </g>
+                        )}
+
+                        {/* Vehicle Telemetry Label Tag */}
+                        <g>
+                          <rect
+                            x={v.x - 28}
+                            y={v.y - 30}
+                            width="56"
+                            height="16"
+                            fill="#000000"
+                            stroke={markerColor}
+                            strokeWidth="1.5"
+                            rx="2"
+                            opacity="0.95"
+                          />
+                          <text
+                            x={v.x}
+                            y={v.y - 18}
+                            textAnchor="middle"
+                            fill={isHazard ? '#fca5a5' : '#ffffff'}
+                            fontSize="10"
+                            fontFamily="monospace"
+                            fontWeight="bold"
+                          >
+                            {v.id} {v.speedKmh > 0 ? `${v.speedKmh.toFixed(0)}k` : '0k'}
+                          </text>
+                        </g>
+                      </g>
+                    );
+                  })}
+
+                  {/* ------------------------------------------------------------- */}
+                  {/* ATMOSPHERIC MONSOON MIST & WEATHER FX */}
+                  {/* ------------------------------------------------------------- */}
+                  {showWeatherFx && weather && (
+                    <g pointerEvents="none">
+                      {/* Low Visibility Mist Clouds */}
+                      {weather.visibilityMeters <= 100 && (
+                        <g opacity="0.35">
+                          <ellipse cx="280" cy="240" rx="140" ry="70" fill="#cbd5e1" filter="blur(16px)" />
+                          <ellipse cx="480" cy="340" rx="180" ry="80" fill="#94a3b8" filter="blur(20px)" />
+                          <ellipse cx="160" cy="460" rx="120" ry="60" fill="#e2e8f0" filter="blur(14px)" />
+                        </g>
+                      )}
+
+                      {/* Monsoon Rain Streaks */}
+                      {weather.rainMmHr > 0 && (
+                        <g stroke="#93c5fd" strokeWidth="0.8" opacity="0.4" strokeDasharray="8,16">
+                          <line x1="100" y1="0" x2="80" y2="600" />
+                          <line x1="250" y1="0" x2="230" y2="600" />
+                          <line x1="400" y1="0" x2="380" y2="600" />
+                          <line x1="550" y1="0" x2="530" y2="600" />
+                          <line x1="700" y1="0" x2="680" y2="600" />
+                        </g>
+                      )}
+                    </g>
+                  )}
+                </svg>
+
+                {/* Map Legend Overlay */}
+                <div className="absolute bottom-2 left-2 bg-black/90 border border-[#333338] p-2.5 flex flex-col gap-1.5 font-mono text-xs text-slate-200 font-medium backdrop-blur-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span>LOADED UPHILL (RIGHT OF WAY)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-green-500" />
+                    <span>EMPTY DOWNHILL (YIELDS TO BAY)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                    <span>HELD IN PASSING BAY</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
+                    <span className="text-red-300 font-bold">CRITICAL CLOSING CONFLICT</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-green-500" />
-                  <span>EMPTY DOWNHILL (YIELDS TO BAY)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <span>HELD IN PASSING BAY</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
-                  <span className="text-red-300 font-bold">CRITICAL CLOSING CONFLICT</span>
-                </div>
+
+                {/* Weather Indicator in Canvas */}
+                {weather && (
+                  <div className="absolute top-2 right-2 bg-black/85 border border-[#333338] px-2.5 py-1.5 flex items-center gap-2 font-mono text-[11px] backdrop-blur-xs">
+                    <CloudFog className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="text-slate-300">
+                      VIS: <strong className="text-white">{weather.visibilityMeters}m</strong> | RAIN:{' '}
+                      <strong className="text-white">{weather.rainMmHr}mm/h</strong>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

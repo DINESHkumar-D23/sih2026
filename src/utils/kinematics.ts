@@ -148,3 +148,12 @@ export function projectGpsToCanvas(lat: number, lng: number): { x: number; y: nu
     y: Math.max(20, Math.min(580, 50 + normY * 500)),
   };
 }
+
+export function projectCanvasToGps(x: number, y: number): { lat: number; lng: number } {
+  const normX = (x - 50) / 700;
+  const normY = (y - 50) / 500;
+  const lng = GEO_BOUNDS.minLng + normX * (GEO_BOUNDS.maxLng - GEO_BOUNDS.minLng);
+  const lat = GEO_BOUNDS.maxLat - normY * (GEO_BOUNDS.maxLat - GEO_BOUNDS.minLat);
+  return { lat, lng };
+}
+

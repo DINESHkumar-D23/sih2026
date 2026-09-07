@@ -650,6 +650,7 @@ export function App() {
                 targetTons={40000}
                 radioNotice={radioNotice}
                 userRole={settings.role}
+                weather={weather}
               />
             )}
 
