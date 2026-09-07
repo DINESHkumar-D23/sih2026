@@ -1,0 +1,6 @@
+{
+  "name": "NMDC Central - Bailadila Haul Dispatch",
+  "description": "Open-cast iron ore mine traffic control (MTC) & haulage dispatch tactical command console for Sector 14-A Pit at Bailadila.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
