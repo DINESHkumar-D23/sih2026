@@ -10,8 +10,8 @@
   --color-surface-bright: #262626;
   --color-surface: #0f0f10;
   --color-background: #0a0a0b;
-  --color-on-surface: #e0e0e0;
-  --color-on-surface-variant: #a3a3a3;
+  --color-on-surface: #f9fafb;
+  --color-on-surface-variant: #cbd5e1;
   --color-outline: #525252;
   --color-outline-variant: #262626;
   --color-surface-tint: #3b82f6;
@@ -72,16 +72,25 @@
   }
 }
 
+@layer base {
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    color: #f1f5f9;
+  }
+}
+
 /* Custom High Density industrial scrollbar */
 ::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: #0a0a0b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #262626;
+  background: #333333;
   border-radius: 0px;
 }
 ::-webkit-scrollbar-thumb:hover {

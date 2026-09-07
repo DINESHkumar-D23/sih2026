@@ -87,57 +87,57 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         <div
           role="status"
           aria-live="polite"
-          className="fixed top-16 right-6 z-50 bg-[#0F0F10] border border-blue-500 text-[#E0E0E0] px-4 py-2 shadow-2xl flex items-center gap-3 animate-bounce"
+          className="fixed top-16 right-6 z-50 bg-[#0F0F10] border-2 border-blue-400 text-white px-5 py-3 shadow-2xl flex items-center gap-3 animate-bounce"
         >
-          <Radio className="w-4 h-4 text-blue-400 animate-pulse" aria-hidden="true" />
+          <Radio className="w-5 h-5 text-blue-400 animate-pulse" aria-hidden="true" />
           <div className="flex flex-col">
-            <span className="font-mono text-[8.5px] text-blue-400 font-bold uppercase tracking-widest">
+            <span className="font-mono text-xs text-blue-300 font-bold uppercase tracking-widest">
               {radioNotice.channel}
             </span>
-            <span className="font-mono text-[11px] font-semibold">{radioNotice.message}</span>
+            <span className="font-mono text-sm font-bold text-white">{radioNotice.message}</span>
           </div>
         </div>
       )}
 
       {/* Primary 3-Column Docked Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 w-full">
         {/* ==================== LEFT COLUMN (col-span-3) ==================== */}
-        <div className="lg:col-span-3 flex flex-col gap-2">
+        <div className="lg:col-span-3 flex flex-col gap-2.5">
           {/* CARD 1: SHIFT HAULAGE PROGRESS */}
-          <div className="bg-[#0A0A0B] border border-[#262626] flex flex-col overflow-hidden">
-            <div className="px-3 py-2 bg-[#0F0F10] border-b border-[#262626] flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
-                <span className="font-mono font-bold text-[10px] text-blue-400 uppercase tracking-wider">
+          <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
+            <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-400" />
+                <span className="font-mono font-bold text-xs text-blue-300 uppercase tracking-wider">
                   Shift Haulage Progress
                 </span>
               </div>
-              <span className="font-mono text-[9px] bg-black text-blue-400 px-1.5 py-0.5 border border-[#333333] font-bold">
+              <span className="font-mono text-xs bg-black text-blue-300 px-2 py-0.5 border border-blue-500/40 font-bold">
                 {progressPercent.toFixed(1)}% TARGET
               </span>
             </div>
 
-            <div className="p-2.5 flex flex-col gap-2">
-              <div className="flex flex-col gap-1 bg-black p-2 border border-[#222222]">
+            <div className="p-3 flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5 bg-[#0c0c0e] p-2.5 border border-[#2a2a30]">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[9px] text-[#888888] tracking-wider uppercase font-bold">
+                  <span className="font-mono text-xs text-slate-300 tracking-wider uppercase font-bold">
                     HAULED TO DATE
                   </span>
-                  <span className="font-mono text-[9px] text-blue-400 bg-[#0F0F10] px-1 py-0.2 border border-[#262626]">
+                  <span className="font-mono text-xs text-blue-300 bg-[#141418] px-1.5 py-0.5 border border-[#333338] font-bold">
                     TARGET {targetTons.toLocaleString()} T
                   </span>
                 </div>
 
-                <div className="flex items-baseline justify-between mt-0.5">
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-mono text-[22px] text-white font-light tracking-tight">
+                <div className="flex items-baseline justify-between mt-1">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-mono text-2xl text-white font-bold tracking-tight">
                       {totalHauledTons.toLocaleString()}
                     </span>
-                    <span className="font-mono text-[10px] text-[#888888]">T</span>
+                    <span className="font-mono text-xs text-slate-300 font-bold">TONS</span>
                   </div>
                 </div>
 
-                <div className="w-full bg-[#18181A] h-1.5 overflow-hidden border border-[#333333] mt-1">
+                <div className="w-full bg-[#18181A] h-2 overflow-hidden border border-[#333333] mt-1">
                   <div
                     className="bg-blue-500 h-full transition-all duration-500"
                     style={{ width: `${progressPercent}%` }}
@@ -148,43 +148,43 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           </div>
 
           {/* CARD 2: ACTIVE COLLISION & MTC INTERLOCK */}
-          <div className="bg-[#0A0A0B] border border-[#262626] flex flex-col overflow-hidden">
-            <div className="px-3 py-2 bg-[#0F0F10] border-b border-[#262626] flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-red-400" />
-                <span className="font-mono font-bold text-[10px] text-red-400 uppercase tracking-wider">
+          <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
+            <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-red-400" />
+                <span className="font-mono font-bold text-xs text-red-300 uppercase tracking-wider">
                   MTC Collision Interlock
                 </span>
               </div>
               {activeConflict && activeConflict.active ? (
-                <span className="font-mono text-[8.5px] bg-red-950 text-red-400 px-1.5 py-0.2 border border-red-500 font-bold animate-pulse">
+                <span className="font-mono text-xs bg-red-950 text-red-200 px-2 py-0.5 border border-red-500 font-bold animate-pulse">
                   CRITICAL PROXIMITY
                 </span>
               ) : (
-                <span className="font-mono text-[8.5px] bg-green-950 text-green-400 px-1.5 py-0.2 border border-green-500 font-bold">
+                <span className="font-mono text-xs bg-green-950 text-green-300 px-2 py-0.5 border border-green-500 font-bold">
                   HAUL ROAD CLEAR
                 </span>
               )}
             </div>
 
-            <div className="p-2.5 flex flex-col gap-2">
+            <div className="p-3 flex flex-col gap-2">
               {activeConflict && activeConflict.active ? (
-                <div className="bg-red-950/20 border border-red-600/60 p-2 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between font-mono text-[9px]">
-                    <span className="text-red-400 font-bold">
+                <div className="bg-red-950/30 border border-red-500 p-2.5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between font-mono text-xs">
+                    <span className="text-red-300 font-bold">
                       CONVERGENCE: {activeConflict.vehicleAId} ↔ {activeConflict.vehicleBId}
                     </span>
-                    <span className="text-white font-bold">{activeConflict.closingDistanceM}m</span>
+                    <span className="text-white font-bold text-sm">{activeConflict.closingDistanceM}m</span>
                   </div>
-                  <div className="text-[9.5px] font-mono text-[#CCCCCC] leading-tight">
+                  <div className="text-xs font-mono text-slate-200 leading-normal font-medium">
                     {activeConflict.recommendedAction}
                   </div>
-                  <div className="flex gap-1.5 mt-1">
+                  <div className="flex gap-2 mt-1">
                     <button
                       type="button"
                       disabled={!isDispatcher}
                       onClick={() => onHoldVehicle(activeConflict.mustHoldId)}
-                      className="flex-1 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-40 disabled:cursor-not-allowed text-black font-mono text-[9px] font-bold py-1 px-2 cursor-pointer transition-colors"
+                      className="flex-1 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed text-black font-mono text-xs font-bold py-2 px-2.5 cursor-pointer transition-colors"
                     >
                       COMMAND HOLD {activeConflict.mustHoldId}
                     </button>
@@ -192,16 +192,16 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                       type="button"
                       disabled={!isDispatcher}
                       onClick={() => onClearVehicle(activeConflict.vehicleAId)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono text-[9px] font-bold py-1 px-2 cursor-pointer transition-colors"
+                      className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono text-xs font-bold py-2 px-2.5 cursor-pointer transition-colors"
                     >
                       CLEAR {activeConflict.vehicleAId}
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="bg-black border border-[#222222] p-2 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
-                  <span className="font-mono text-[9.5px] text-[#A3A3A3]">
+                <div className="bg-black border border-[#2a2a30] p-2.5 flex items-center gap-2.5">
+                  <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
+                  <span className="font-mono text-xs text-slate-200 leading-normal">
                     No immediate head-to-head convergence detected on single-lane segments. Dynamic stopping buffers nominal.
                   </span>
                 </div>
@@ -210,18 +210,18 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           </div>
 
           {/* CARD 3: CAMERA & LAYER CONTROLS */}
-          <div className="bg-[#0A0A0B] border border-[#262626] p-2.5 flex flex-col gap-2 font-mono text-[10px]">
-            <span className="text-[9px] text-[#888888] font-bold uppercase">CANVAS PRESET &amp; LAYERS</span>
-            <div className="grid grid-cols-3 gap-1">
+          <div className="bg-[#0A0A0B] border border-[#333338] p-3 flex flex-col gap-2.5 font-mono text-xs">
+            <span className="text-xs text-slate-300 font-bold uppercase">CANVAS PRESET &amp; LAYERS</span>
+            <div className="grid grid-cols-3 gap-1.5">
               {(['overview', 'hairpin3', 'crusher'] as const).map((preset) => (
                 <button
                   key={preset}
                   type="button"
                   onClick={() => setViewPreset(preset)}
-                  className={`py-1 text-[9px] font-bold uppercase border cursor-pointer transition-colors ${
+                  className={`py-1.5 text-xs font-bold uppercase border cursor-pointer transition-colors ${
                     viewPreset === preset
-                      ? 'bg-blue-600 text-white border-blue-400'
-                      : 'bg-black text-[#888888] border-[#222222] hover:text-white'
+                      ? 'bg-blue-600 text-white border-blue-400 shadow-xs'
+                      : 'bg-black text-slate-300 border-[#333338] hover:text-white'
                   }`}
                 >
                   {preset === 'overview' ? 'OVERVIEW' : preset === 'hairpin3' ? 'HAIRPIN 3' : 'CRUSHER'}
@@ -229,26 +229,26 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               ))}
             </div>
 
-            <div className="flex flex-col gap-1 mt-1 text-[9px] text-[#A3A3A3]">
-              <label className="flex items-center gap-1.5 cursor-pointer">
+            <div className="flex flex-col gap-1.5 mt-1 text-xs text-slate-200">
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
                 <input
                   type="checkbox"
                   checked={showBenchLines}
                   onChange={(e) => setShowBenchLines(e.target.checked)}
-                  className="cursor-pointer"
+                  className="w-3.5 h-3.5 cursor-pointer"
                 />
                 <span>Bench Contours (RL 1040-1280M)</span>
               </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
                 <input
                   type="checkbox"
                   checked={showPassingBays}
                   onChange={(e) => setShowPassingBays(e.target.checked)}
-                  className="cursor-pointer"
+                  className="w-3.5 h-3.5 cursor-pointer"
                 />
                 <span>Passing Bays Alpha &amp; Beta</span>
               </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
                 <input
                   type="checkbox"
                   checked={showBrakingRings}
@@ -264,15 +264,15 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         {/* ==================== CENTER COLUMN (col-span-6) ==================== */}
         <div className="lg:col-span-6 flex flex-col gap-2">
           {/* RADAR SVG DISPLAY CANVAS */}
-          <div className="bg-[#050507] border border-[#262626] relative overflow-hidden flex flex-col">
-            <div className="px-3 py-1.5 bg-[#0F0F10] border-b border-[#262626] flex items-center justify-between">
+          <div className="bg-[#050507] border border-[#333338] relative overflow-hidden flex flex-col">
+            <div className="px-3.5 py-2 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
-                <span className="font-mono text-[10.5px] font-bold text-white uppercase tracking-wider">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping" />
+                <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
                   DIGITAL TWIN // BAILADILA SECTOR 14-A HAUL ROAD
                 </span>
               </div>
-              <span className="font-mono text-[9px] text-[#888888]">
+              <span className="font-mono text-xs text-slate-300 font-semibold">
                 CATMULL-ROM SPLINE // 11% GRADE
               </span>
             </div>
@@ -287,7 +287,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                 <defs>
                   {/* Grid Pattern */}
                   <pattern id="radarGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1f242e" strokeWidth="0.5" />
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#222834" strokeWidth="0.6" />
                   </pattern>
 
                   {/* Hazard Pulse Filter */}
@@ -305,22 +305,22 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
 
                 {/* Topographic Bench Contour Lines */}
                 {showBenchLines && (
-                  <g opacity="0.35" stroke="#374151" strokeWidth="0.8" fill="none" strokeDasharray="3,3">
+                  <g opacity="0.65" stroke="#475569" strokeWidth="1" fill="none" strokeDasharray="4,4">
                     {/* Pit Floor Bench 09 */}
                     <ellipse cx="120" cy="520" rx="90" ry="50" />
-                    <text x="125" y="555" fill="#6b7280" fontSize="8" fontFamily="monospace">RL 1,040M (PIT FLOOR)</text>
+                    <text x="125" y="555" fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,040M (PIT FLOOR)</text>
 
                     {/* Bench 07 */}
                     <ellipse cx="260" cy="440" rx="140" ry="70" />
-                    <text x="265" y="480" fill="#6b7280" fontSize="8" fontFamily="monospace">RL 1,120M (BENCH 07)</text>
+                    <text x="265" y="480" fill="#cbd5e1" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,120M (BENCH 07)</text>
 
                     {/* Hairpin 3 Switchback Ridge */}
                     <ellipse cx="440" cy="280" rx="180" ry="90" />
-                    <text x="445" y="325" fill="#ef4444" fontSize="8" fontFamily="monospace">RL 1,180M (HAIRPIN 3 BLIND APEX)</text>
+                    <text x="445" y="325" fill="#fca5a5" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,180M (HAIRPIN 3 BLIND APEX)</text>
 
                     {/* Surface Rim */}
                     <ellipse cx="560" cy="80" rx="160" ry="70" />
-                    <text x="565" y="115" fill="#60a5fa" fontSize="8" fontFamily="monospace">RL 1,280M (CRUSHER RIM)</text>
+                    <text x="565" y="115" fill="#93c5fd" fontSize="11" fontWeight="bold" fontFamily="monospace">RL 1,280M (CRUSHER RIM)</text>
                   </g>
                 )}
 
@@ -329,22 +329,22 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                   <g>
                     {/* Bay Alpha near Hairpin 3 */}
                     <rect
-                      x={PASSING_BAY_ALPHA.x - 20}
-                      y={PASSING_BAY_ALPHA.y - 12}
-                      width="40"
-                      height="24"
+                      x={PASSING_BAY_ALPHA.x - 22}
+                      y={PASSING_BAY_ALPHA.y - 14}
+                      width="44"
+                      height="28"
                       fill="#0e1726"
                       stroke="#3b82f6"
-                      strokeWidth="1.2"
-                      strokeDasharray="2,2"
+                      strokeWidth="1.5"
+                      strokeDasharray="3,3"
                       rx="2"
                     />
                     <text
                       x={PASSING_BAY_ALPHA.x}
-                      y={PASSING_BAY_ALPHA.y + 18}
+                      y={PASSING_BAY_ALPHA.y + 22}
                       textAnchor="middle"
-                      fill="#60a5fa"
-                      fontSize="7.5"
+                      fill="#93c5fd"
+                      fontSize="11"
                       fontFamily="monospace"
                       fontWeight="bold"
                     >
@@ -353,22 +353,22 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
 
                     {/* Bay Beta near Bench 07 */}
                     <rect
-                      x={PASSING_BAY_BETA.x - 18}
-                      y={PASSING_BAY_BETA.y - 12}
-                      width="36"
-                      height="24"
+                      x={PASSING_BAY_BETA.x - 20}
+                      y={PASSING_BAY_BETA.y - 14}
+                      width="40"
+                      height="28"
                       fill="#0e1726"
                       stroke="#3b82f6"
-                      strokeWidth="1.2"
-                      strokeDasharray="2,2"
+                      strokeWidth="1.5"
+                      strokeDasharray="3,3"
                       rx="2"
                     />
                     <text
                       x={PASSING_BAY_BETA.x}
-                      y={PASSING_BAY_BETA.y + 18}
+                      y={PASSING_BAY_BETA.y + 22}
                       textAnchor="middle"
-                      fill="#60a5fa"
-                      fontSize="7.5"
+                      fill="#93c5fd"
+                      fontSize="11"
                       fontFamily="monospace"
                       fontWeight="bold"
                     >
@@ -405,12 +405,12 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
 
                 {/* Terminal Points: Shovels & Crushers */}
                 {/* Pit Floor Shovel */}
-                <circle cx="120" cy="520" r="14" fill="#14532d" stroke="#22c55e" strokeWidth="1.5" />
-                <text x="120" y="524" textAnchor="middle" fill="#ffffff" fontSize="8" fontWeight="bold">SHV-01</text>
+                <circle cx="120" cy="520" r="16" fill="#14532d" stroke="#22c55e" strokeWidth="2" />
+                <text x="120" y="525" textAnchor="middle" fill="#ffffff" fontSize="10.5" fontWeight="bold">SHV-01</text>
 
                 {/* Crusher 1 Hopper */}
-                <polygon points="565,35 595,35 605,65 555,65" fill="#1e3a8a" stroke="#3b82f6" strokeWidth="1.5" />
-                <text x="580" y="53" textAnchor="middle" fill="#ffffff" fontSize="8" fontWeight="bold">CRUSHER 1</text>
+                <polygon points="560,32 600,32 610,68 550,68" fill="#1e3a8a" stroke="#3b82f6" strokeWidth="2" />
+                <text x="580" y="54" textAnchor="middle" fill="#ffffff" fontSize="10.5" fontWeight="bold">CRUSHER 1</text>
 
                 {/* Active Conflict Closing Line */}
                 {activeConflict && activeConflict.active && (() => {
@@ -428,25 +428,25 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                         x2={vB.x}
                         y2={vB.y}
                         stroke="#ef4444"
-                        strokeWidth="2"
-                        strokeDasharray="4,4"
+                        strokeWidth="2.5"
+                        strokeDasharray="5,5"
                       />
                       <rect
-                        x={midX - 28}
-                        y={midY - 10}
-                        width="56"
-                        height="20"
+                        x={midX - 35}
+                        y={midY - 12}
+                        width="70"
+                        height="24"
                         fill="#000000"
                         stroke="#ef4444"
-                        strokeWidth="1"
+                        strokeWidth="1.5"
                         rx="2"
                       />
                       <text
                         x={midX}
-                        y={midY + 3}
+                        y={midY + 4}
                         textAnchor="middle"
-                        fill="#f87171"
-                        fontSize="8"
+                        fill="#fca5a5"
+                        fontSize="11"
                         fontFamily="monospace"
                         fontWeight="bold"
                       >
@@ -492,11 +492,11 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                           cx={v.x}
                           cy={v.y}
                           r={Math.max(12, v.dStopMeters * 0.9)}
-                          fill={isHazard ? 'rgba(239, 68, 68, 0.15)' : 'none'}
+                          fill={isHazard ? 'rgba(239, 68, 68, 0.2)' : 'none'}
                           stroke={markerColor}
-                          strokeWidth="1"
-                          strokeDasharray={isHazard ? 'none' : '3,3'}
-                          opacity={isHazard ? 0.8 : 0.4}
+                          strokeWidth="1.5"
+                          strokeDasharray={isHazard ? 'none' : '4,4'}
+                          opacity={isHazard ? 0.9 : 0.5}
                           className={isHazard ? 'animate-pulse' : ''}
                         />
                       )}
@@ -506,10 +506,10 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                         <circle
                           cx={v.x}
                           cy={v.y}
-                          r="22"
+                          r="24"
                           fill="none"
                           stroke="#ef4444"
-                          strokeWidth="2"
+                          strokeWidth="2.5"
                           filter="url(#hazardGlow)"
                           className="animate-ping"
                           style={{ animationDuration: '1.4s' }}
@@ -520,36 +520,36 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                       <circle
                         cx={v.x}
                         cy={v.y}
-                        r="10"
+                        r="11"
                         fill="#09090b"
                         stroke={markerColor}
-                        strokeWidth="2"
+                        strokeWidth="2.5"
                         className="transition-colors group-hover:stroke-white"
                       />
 
                       {/* Directional Heading Vector */}
                       <g transform={`translate(${v.x}, ${v.y}) rotate(${v.headingDeg})`}>
-                        <polygon points="0,-14 4,-6 -4,-6" fill={markerColor} />
+                        <polygon points="0,-16 5,-7 -5,-7" fill={markerColor} />
                       </g>
 
                       {/* Vehicle Label Tag */}
                       <rect
-                        x={v.x - 22}
-                        y={v.y - 24}
-                        width="44"
-                        height="12"
+                        x={v.x - 27}
+                        y={v.y - 28}
+                        width="54"
+                        height="15"
                         fill="#000000"
                         stroke={markerColor}
-                        strokeWidth="1"
-                        rx="1"
-                        opacity="0.9"
+                        strokeWidth="1.5"
+                        rx="2"
+                        opacity="0.95"
                       />
                       <text
                         x={v.x}
-                        y={v.y - 15}
+                        y={v.y - 17}
                         textAnchor="middle"
                         fill={isHazard ? '#fca5a5' : '#ffffff'}
-                        fontSize="7.5"
+                        fontSize="10.5"
                         fontFamily="monospace"
                         fontWeight="bold"
                       >
@@ -561,22 +561,22 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               </svg>
 
               {/* Map Legend Overlay */}
-              <div className="absolute bottom-2 left-2 bg-black/80 border border-[#262626] p-2 flex flex-col gap-1 font-mono text-[8.5px] text-[#A3A3A3] backdrop-blur-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <div className="absolute bottom-2 left-2 bg-black/90 border border-[#333338] p-2.5 flex flex-col gap-1.5 font-mono text-xs text-slate-200 font-medium backdrop-blur-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-blue-500" />
                   <span>LOADED UPHILL (RIGHT OF WAY)</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-green-500" />
                   <span>EMPTY DOWNHILL (YIELDS TO BAY)</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
                   <span>HELD IN PASSING BAY</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                  <span>CRITICAL CLOSING CONFLICT</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
+                  <span className="text-red-300 font-bold">CRITICAL CLOSING CONFLICT</span>
                 </div>
               </div>
             </div>
@@ -584,29 +584,29 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         </div>
 
         {/* ==================== RIGHT COLUMN (col-span-3) ==================== */}
-        <div className="lg:col-span-3 flex flex-col gap-2">
+        <div className="lg:col-span-3 flex flex-col gap-2.5">
           {/* VEHICLE ROSTER CARD */}
-          <div className="bg-[#0A0A0B] border border-[#262626] flex flex-col overflow-hidden">
-            <div className="px-3 py-2 bg-[#0F0F10] border-b border-[#262626] flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-blue-400" />
-                <span className="font-mono font-bold text-[10px] text-blue-400 uppercase tracking-wider">
+          <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
+            <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-blue-400" />
+                <span className="font-mono font-bold text-xs text-blue-300 uppercase tracking-wider">
                   Live Fleet Roster ({vehicles.length})
                 </span>
               </div>
             </div>
 
             {/* Filter Tabs */}
-            <div className="p-1.5 bg-black border-b border-[#222222] flex items-center gap-1 flex-wrap font-mono text-[8.5px]">
+            <div className="p-2 bg-black border-b border-[#2a2a30] flex items-center gap-1.5 flex-wrap font-mono text-xs">
               {(['all', 'critical', 'warning', 'queued', 'hauling'] as const).map((filterKey) => (
                 <button
                   key={filterKey}
                   type="button"
                   onClick={() => setStatusFilter(filterKey)}
-                  className={`px-1.5 py-0.5 border uppercase cursor-pointer transition-colors ${
+                  className={`px-2 py-1 border uppercase cursor-pointer transition-colors font-bold text-[11px] ${
                     statusFilter === filterKey
-                      ? 'bg-blue-600 text-white border-blue-400 font-bold'
-                      : 'bg-[#141416] text-[#888888] border-[#262626] hover:text-white'
+                      ? 'bg-blue-600 text-white border-blue-400 shadow-xs'
+                      : 'bg-[#16161a] text-slate-300 border-[#333338] hover:text-white'
                   }`}
                 >
                   {filterKey}
@@ -615,7 +615,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
             </div>
 
             {/* Scrollable Vehicle List */}
-            <div className="p-1.5 flex flex-col gap-1 max-h-[460px] overflow-y-auto font-mono text-[9.5px]">
+            <div className="p-2 flex flex-col gap-1.5 max-h-[480px] overflow-y-auto font-mono text-xs">
               {filteredVehicles.map((v) => {
                 const isConflict = v.hazardEnvelope;
                 const isHeld = v.state === 'HELD_BY_MTC';
@@ -623,44 +623,44 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                 return (
                   <div
                     key={v.id}
-                    className={`p-2 bg-black border flex flex-col gap-1 transition-all ${
+                    className={`p-2.5 bg-black border flex flex-col gap-1.5 transition-all ${
                       isConflict
-                        ? 'border-red-500 bg-red-950/20'
+                        ? 'border-red-500 bg-red-950/30 shadow-xs'
                         : isHeld
-                        ? 'border-yellow-600/70 bg-yellow-950/10'
-                        : 'border-[#222222] hover:border-[#444444]'
+                        ? 'border-yellow-500 bg-yellow-950/20'
+                        : 'border-[#2a2a30] hover:border-slate-500'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div
                         onClick={() => onSelectVehicle(v)}
-                        className="flex items-center gap-1.5 cursor-pointer"
+                        className="flex items-center gap-2 cursor-pointer"
                       >
-                        <span className="font-bold text-white hover:text-blue-400">{v.id}</span>
-                        <span className="text-[8px] text-[#888888]">({v.type})</span>
+                        <span className="font-bold text-white text-sm hover:text-blue-400">{v.id}</span>
+                        <span className="text-xs text-slate-300 font-semibold">({v.type})</span>
                         {isConflict && (
-                          <span className="text-[8px] text-red-400 font-bold bg-red-950 px-1 border border-red-500 animate-pulse">
+                          <span className="text-xs text-red-200 font-bold bg-red-950 px-1.5 py-0.5 border border-red-500 animate-pulse">
                             HAZARD
                           </span>
                         )}
                       </div>
 
                       <div className="flex items-center gap-1">
-                        <span className="text-white font-bold">{v.speedKmh.toFixed(0)} km/h</span>
+                        <span className="text-white font-bold text-sm">{v.speedKmh.toFixed(0)} km/h</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[8.5px] text-[#888888]">
+                    <div className="flex items-center justify-between text-xs text-slate-300 font-medium">
                       <span>{v.material} ({v.payloadTons}T)</span>
-                      <span>Stop: {v.dStopMeters}m</span>
+                      <span>Stop: <strong className="text-white">{v.dStopMeters}m</strong></span>
                     </div>
 
                     {/* Quick MTC Control buttons */}
-                    <div className="flex items-center gap-1 mt-1">
+                    <div className="flex items-center gap-1.5 mt-1">
                       <button
                         type="button"
                         onClick={() => onSelectVehicle(v)}
-                        className="flex-1 bg-[#18181A] hover:bg-[#222225] text-gray-300 text-[8.5px] py-0.5 border border-[#333333] cursor-pointer"
+                        className="flex-1 bg-[#1a1a20] hover:bg-[#262630] text-slate-200 text-xs font-bold py-1 px-2 border border-[#44444c] cursor-pointer transition-colors"
                       >
                         TELEMETRY
                       </button>
@@ -670,7 +670,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                           type="button"
                           disabled={!isDispatcher}
                           onClick={() => onClearVehicle(v.id)}
-                          className="flex-1 bg-green-800 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[8.5px] font-bold py-0.5 border border-green-500 cursor-pointer"
+                          className="flex-1 bg-green-700 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold py-1 px-2 border border-green-400 cursor-pointer transition-colors"
                         >
                           CLEAR
                         </button>
@@ -679,7 +679,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                           type="button"
                           disabled={!isDispatcher}
                           onClick={() => onHoldVehicle(v.id)}
-                          className="flex-1 bg-yellow-800 hover:bg-yellow-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[8.5px] font-bold py-0.5 border border-yellow-500 cursor-pointer"
+                          className="flex-1 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-40 disabled:cursor-not-allowed text-black text-xs font-bold py-1 px-2 border border-yellow-400 cursor-pointer transition-colors"
                         >
                           HOLD
                         </button>

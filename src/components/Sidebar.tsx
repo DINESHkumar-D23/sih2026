@@ -100,14 +100,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* App Header / Brand */}
           <div className="h-14 px-3.5 flex items-center justify-between border-b border-[#262626] bg-[#0A0A0B]">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 bg-blue-600 flex items-center justify-center font-bold text-white text-[12px] font-mono shadow-xs">
+              <div className="w-8 h-8 bg-blue-600 flex items-center justify-center font-bold text-white text-sm font-mono shadow-xs">
                 MTC
               </div>
               <div className="flex flex-col">
-                <span className="font-mono font-bold text-[11px] tracking-wider text-[#E0E0E0] uppercase leading-tight">
+                <span className="font-mono font-bold text-xs tracking-wider text-white uppercase leading-tight">
                   NMDC CENTRAL
                 </span>
-                <span className="font-mono text-[8.5px] text-blue-400 tracking-widest uppercase">
+                <span className="font-mono text-[11px] text-blue-300 font-semibold tracking-widest uppercase">
                   SECTOR 14-A MTC
                 </span>
               </div>
@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
               onClick={onCloseMobile}
-              className="lg:hidden p-1 text-[#888888] hover:text-white cursor-pointer"
+              className="lg:hidden p-1.5 text-slate-300 hover:text-white cursor-pointer"
               aria-label="Close menu"
             >
               <X className="w-4 h-4" />
@@ -123,13 +123,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Role Status Tag */}
-          <div className="px-3.5 py-2 border-b border-[#222222] bg-black flex items-center justify-between font-mono text-[9px]">
-            <span className="text-[#888888] uppercase">CONSOLE ACCESS:</span>
+          <div className="px-3.5 py-2 border-b border-[#222222] bg-black flex items-center justify-between font-mono text-[11px]">
+            <span className="text-slate-300 font-bold uppercase">CONSOLE ACCESS:</span>
             <span
-              className={`font-bold uppercase px-1.5 py-0.2 border ${
+              className={`font-bold uppercase px-2 py-0.5 border ${
                 userRole === 'dispatcher'
-                  ? 'text-blue-400 border-blue-600 bg-blue-950/40'
-                  : 'text-gray-400 border-gray-600 bg-gray-900/40'
+                  ? 'text-blue-300 border-blue-500 bg-blue-950/80'
+                  : 'text-slate-200 border-slate-500 bg-slate-900/60'
               }`}
             >
               {userRole === 'dispatcher' ? 'MTC CONTROLLER' : 'SAFETY OBSERVER'}
@@ -137,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Navigation Links */}
-          <div className="flex flex-col p-2 gap-0.5">
+          <div className="flex flex-col p-2 gap-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentScreen === item.id;
@@ -148,27 +148,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onSelectScreen(item.id);
                     onCloseMobile();
                   }}
-                  className={`flex items-center justify-between w-full px-3 py-2 font-mono text-[11px] transition-colors cursor-pointer border ${
+                  className={`flex items-center justify-between w-full px-3 py-2.5 font-mono text-xs transition-colors cursor-pointer border ${
                     isActive
-                      ? 'bg-blue-600/15 text-white font-semibold border-blue-500/50'
-                      : 'text-[#A3A3A3] hover:text-[#E0E0E0] hover:bg-[#18181A] border-transparent'
+                      ? 'bg-blue-600/25 text-white font-bold border-blue-500 shadow-xs'
+                      : 'text-slate-200 hover:text-white hover:bg-[#1c1c20] border-transparent font-medium'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Icon
-                      className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-[#888888]'}`}
+                      className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-slate-300'}`}
                     />
-                    <span>{item.label}</span>
+                    <span className="text-[12.5px]">{item.label}</span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
                     {item.badge && (
-                      <span className="bg-red-950 text-red-400 text-[8.5px] px-1.5 py-0.2 font-bold border border-red-500 animate-pulse">
+                      <span className="bg-red-950 text-red-200 text-xs px-2 py-0.5 font-bold border border-red-500 animate-pulse">
                         {item.badge}
                       </span>
                     )}
                     {item.hasPulse && !item.badge && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                      <span className="bg-red-950 text-red-200 text-xs px-2 py-0.5 font-bold border border-red-500 animate-pulse">
+                        {hazardCount} CONFLICT{hazardCount > 1 ? 'S' : ''}
+                      </span>
                     )}
                   </div>
                 </button>
@@ -176,21 +178,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
           </div>
 
-          {/* Environmental Telemetry Card in Sidebar */}
+          {/* Environmental Telemetry Card Widget */}
           {weather && (
-            <div className="mx-3 my-2 p-2 bg-[#0A0A0B] border border-[#262626] font-mono text-[9.5px]">
-              <div className="flex items-center justify-between text-[#888888] mb-1">
-                <span className="flex items-center gap-1 font-bold text-cyan-400">
-                  <CloudRain className="w-3 h-3" />
-                  PIT ENVIRONMENT
+            <div className="p-3 bg-[#111114] border border-[#262626] font-mono text-xs text-[#d1d5db]">
+              <div className="flex items-center justify-between border-b border-[#262626] pb-2 mb-2.5">
+                <span className="text-slate-300 font-bold uppercase tracking-wider text-xs flex items-center gap-1.5">
+                  <CloudRain className="w-4 h-4 text-blue-400" /> PIT ENVIRONMENT
                 </span>
-                <span className="text-[8px] px-1 bg-[#18181A] text-gray-300">RL 1,240m</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs px-1.5 py-0.5 bg-[#1c1c22] text-slate-200 font-semibold border border-slate-700">RL 1,240m</span>
+                </div>
               </div>
-              <div className="flex justify-between items-baseline mb-0.5">
-                <span className="text-white font-light text-[13px]">{weather.temperatureC.toFixed(1)}°C</span>
-                <span className="text-blue-300 text-[9px]">{weather.rainMmHr.toFixed(1)} mm/h</span>
+              <div className="flex justify-between items-baseline mb-1">
+                <span className="text-white font-bold text-sm">{weather.temperatureC.toFixed(1)}°C</span>
+                <span className="text-blue-300 text-xs font-semibold">{weather.rainMmHr.toFixed(1)} mm/h</span>
               </div>
-              <div className="flex justify-between text-[8.5px] text-[#A3A3A3] mb-1.5">
+              <div className="flex justify-between text-[11px] text-slate-300 font-medium mb-2">
                 <span>μ={weather.frictionCoefficient.toFixed(2)} ({weather.surfaceCondition || 'Wet'})</span>
                 <span>{weather.windDirectionCompass} {weather.windSpeedKmh} km/h</span>
               </div>
@@ -198,9 +201,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   type="button"
                   onClick={onOpenWeatherModal}
-                  className="w-full bg-[#161619] hover:bg-[#222226] text-cyan-300 border border-cyan-700/50 py-1 text-[8.5px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                  className="w-full bg-[#18181f] hover:bg-[#252530] text-cyan-200 border border-cyan-500/60 py-1.5 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                 >
-                  <ExternalLink className="w-2.5 h-2.5" />
+                  <ExternalLink className="w-3 h-3" />
                   <span>MET HYDROLOGY DETAILS</span>
                 </button>
               )}
@@ -214,9 +217,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={onOpenBroadcast}
-            className="w-full bg-[#141416] hover:bg-[#1A1A1D] border border-blue-500/40 text-blue-300 font-mono text-[10px] font-bold py-2 px-3 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            className="w-full bg-[#16161a] hover:bg-[#222228] border border-blue-400 text-blue-200 font-mono text-xs font-bold py-2.5 px-3 flex items-center justify-center gap-2 cursor-pointer transition-colors"
           >
-            <Megaphone className="w-3.5 h-3.5 text-blue-400" />
+            <Megaphone className="w-4 h-4 text-blue-300" />
             <span>VHF CH 04 BROADCAST</span>
           </button>
 
@@ -224,17 +227,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={onOpenEmergencyStop}
-            className={`w-full font-mono text-[10px] font-bold py-2 px-3 flex items-center justify-center gap-2 border cursor-pointer transition-colors ${
+            className={`w-full font-mono text-xs font-bold py-2.5 px-3 flex items-center justify-center gap-2 border cursor-pointer transition-colors ${
               isEmergencyActive
-                ? 'bg-red-700 text-white border-red-500 animate-pulse'
-                : 'bg-red-950/70 hover:bg-red-900 border-red-600 text-red-300'
+                ? 'bg-red-600 text-white border-red-400 animate-pulse'
+                : 'bg-red-950 hover:bg-red-900 border-red-500 text-red-200'
             }`}
           >
-            <AlertOctagon className="w-3.5 h-3.5" />
+            <AlertOctagon className="w-4 h-4" />
             <span>{isEmergencyActive ? 'E-STOP INTERLOCK ACTIVE' : 'ALL-PIT E-STOP PROTOCOL'}</span>
           </button>
 
-          <div className="text-[8.5px] font-mono text-[#666666] text-center mt-0.5">
+          <div className="text-[11px] font-mono text-slate-300 font-medium text-center mt-0.5">
             BAILADILA DEPOSIT 14-A • 11% GRADE
           </div>
         </div>

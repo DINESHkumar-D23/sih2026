@@ -35,31 +35,31 @@ export const EmergencyStopModal: React.FC<EmergencyStopModalProps> = ({
     >
       <div className="w-full max-w-md bg-[#0A0A0B] border border-red-600 shadow-2xl overflow-hidden text-[#E0E0E0]">
         {/* Header */}
-        <div className="p-2.5 bg-red-950/80 border-b border-red-600 flex items-center justify-between text-white">
+        <div className="p-3 bg-red-950/90 border-b border-red-600 flex items-center justify-between text-white">
           <div className="flex items-center gap-2">
             <AlertOctagon className="w-5 h-5 text-red-400 animate-pulse" aria-hidden="true" />
-            <span id="estop-title" className="font-mono text-[12px] font-bold tracking-wider uppercase">
+            <span id="estop-title" className="font-mono text-sm font-bold tracking-wider uppercase">
               MINE EMERGENCY STOP PROTOCOL
             </span>
           </div>
           <button
             onClick={onClose}
             aria-label="Close emergency stop dialog"
-            className="p-1 hover:bg-red-900 transition-colors cursor-pointer text-gray-300 hover:text-white"
+            className="p-1 hover:bg-red-900 transition-colors cursor-pointer text-slate-300 hover:text-white"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-3.5 flex flex-col gap-2.5">
+        <div className="p-4 flex flex-col gap-3">
           {isEmergencyActive ? (
-            <div className="p-3 bg-red-950/40 border border-red-600 flex flex-col items-center text-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-red-500 animate-ping" />
-              <span className="font-mono text-[13px] font-bold text-red-400 uppercase">
+            <div className="p-4 bg-red-950/50 border border-red-600 flex flex-col items-center text-center gap-2.5">
+              <span className="h-3.5 w-3.5 rounded-full bg-red-500 animate-ping" />
+              <span className="font-mono text-sm sm:text-base font-bold text-red-300 uppercase tracking-wider">
                 ALL-PIT EMERGENCY STOP ACTIVE
               </span>
-              <p className="font-sans text-[11px] text-[#E0E0E0]">
+              <p className="font-sans text-xs sm:text-sm text-slate-200 leading-relaxed">
                 Autonomous retarder interlocks engaged across all active dumpers. Haul operations halted at current locations with state fidelity preserved.
               </p>
               <button
@@ -67,20 +67,20 @@ export const EmergencyStopModal: React.FC<EmergencyStopModalProps> = ({
                   onResetEmergency();
                   onClose();
                 }}
-                className="mt-2 bg-blue-600 text-white font-mono text-[10px] font-bold py-2 px-4 border border-blue-400 hover:bg-blue-500 cursor-pointer flex items-center gap-1.5 transition-colors"
+                className="mt-2 bg-blue-600 text-white font-mono text-xs font-bold py-2.5 px-4 border border-blue-400 hover:bg-blue-500 cursor-pointer flex items-center gap-2 transition-colors shadow-md"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-4 h-4" />
                 RESET INTERLOCK &amp; RESUME OPERATIONS
               </button>
             </div>
           ) : (
             <>
-              <div className="text-[11px] font-sans text-[#E0E0E0] leading-relaxed">
-                <p className="font-bold text-red-400 mb-1 font-mono text-[11px]">
+              <div className="text-xs sm:text-sm font-sans text-slate-200 leading-relaxed">
+                <p className="font-bold text-red-300 mb-1.5 font-mono text-xs sm:text-sm leading-snug">
                   WARNING: Broadcasts E-Stop override across VHF CH 04 and commands immediate hydraulic retarder braking on all active haul units.
                 </p>
-                <p className="text-[#888888] text-[10.5px]">
-                  Requires safety controller confirmation. Type <strong className="text-white font-mono">STOP</strong> below to authorize command execution.
+                <p className="text-slate-300 text-xs sm:text-[13px]">
+                  Requires safety controller confirmation. Type <strong className="text-white font-mono bg-red-950/60 px-1 py-0.5 border border-red-800">STOP</strong> below to authorize command execution.
                 </p>
               </div>
 
@@ -98,15 +98,15 @@ export const EmergencyStopModal: React.FC<EmergencyStopModalProps> = ({
                       onClose();
                     }
                   }}
-                  className="bg-black border border-red-500 text-red-300 font-mono text-[13px] px-3 py-1.5 focus:outline-hidden text-center uppercase font-bold tracking-wider"
+                  className="bg-black border-2 border-red-500 text-red-200 font-mono text-sm sm:text-base px-3 py-2 focus:outline-hidden text-center uppercase font-bold tracking-widest placeholder:text-red-900"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-1.5">
+              <div className="grid grid-cols-2 gap-2.5 mt-1.5">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="bg-[#18181A] hover:bg-black text-[#E0E0E0] font-mono text-[10px] font-semibold py-1.5 border border-[#333333] cursor-pointer"
+                  className="bg-[#18181A] hover:bg-black text-white font-mono text-xs font-bold py-2 border border-[#333333] cursor-pointer"
                 >
                   CANCEL
                 </button>
@@ -117,13 +117,13 @@ export const EmergencyStopModal: React.FC<EmergencyStopModalProps> = ({
                     onConfirmStop();
                     onClose();
                   }}
-                  className={`font-mono text-[10px] font-bold py-1.5 border transition-colors flex items-center justify-center gap-1 cursor-pointer ${
+                  className={`font-mono text-xs font-bold py-2 border transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-md ${
                     confirmInput === 'STOP'
-                      ? 'bg-red-700 hover:bg-red-600 text-white border-red-500'
-                      : 'bg-black text-[#555555] border-[#262626] cursor-not-allowed opacity-50'
+                      ? 'bg-red-700 hover:bg-red-600 text-white border-red-400'
+                      : 'bg-black text-slate-500 border-[#262626] cursor-not-allowed opacity-50'
                   }`}
                 >
-                  <AlertOctagon className="w-3.5 h-3.5" />
+                  <AlertOctagon className="w-4 h-4" />
                   EXECUTE E-STOP
                 </button>
               </div>

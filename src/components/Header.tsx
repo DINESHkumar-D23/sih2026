@@ -91,23 +91,23 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center gap-2">
           <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-mono tracking-wider uppercase font-bold text-[#E0E0E0]">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-mono tracking-wider uppercase font-bold text-white">
                 NMDC BAILADILA / SECTOR 14-A
               </span>
               {wsStatus === 'CONNECTED' ? (
-                <span className="flex items-center gap-1 bg-green-950/80 text-green-400 border border-green-600 px-1.5 py-0.2 font-mono text-[8.5px] font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span className="flex items-center gap-1.5 bg-green-950 text-green-300 border border-green-500 px-2 py-0.5 font-mono text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                   HARDWARE WS
                 </span>
               ) : (
-                <span className="flex items-center gap-1 bg-blue-950/80 text-blue-400 border border-blue-600 px-1.5 py-0.2 font-mono text-[8.5px] font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                <span className="flex items-center gap-1.5 bg-blue-950 text-blue-300 border border-blue-500 px-2 py-0.5 font-mono text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-blue-400" />
                   SIM ENGINE
                 </span>
               )}
             </div>
-            <span className="font-mono text-[8.5px] text-[#888888] tracking-wider uppercase hidden sm:block">
+            <span className="font-mono text-[11px] text-slate-300 font-medium tracking-wider uppercase hidden sm:block">
               MINE TRAFFIC CONTROL (MTC) &amp; COLLISION AVOIDANCE
             </span>
           </div>
@@ -117,10 +117,10 @@ export const Header: React.FC<HeaderProps> = ({
         {fogVisibilityMeters <= 50 && (
           <div
             role="status"
-            className="hidden xl:flex items-center gap-1.5 px-2 py-0.5 bg-[#991b1b]/30 border border-[#ef4444]/60"
+            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 bg-[#991b1b]/40 border border-red-500"
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
-            <span className="font-mono text-[9.5px] text-red-400 font-bold tracking-wider uppercase">
+            <span className="h-2 w-2 rounded-full bg-red-400 animate-ping" />
+            <span className="font-mono text-[11px] text-red-200 font-bold tracking-wider uppercase">
               FOG ADVISORY: VISIBILITY {fogVisibilityMeters}M
             </span>
           </div>
@@ -128,26 +128,26 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Controls: Role, Audio, Fullscreen, E-Stop, Clocks */}
-      <div className="flex items-center gap-1.5 md:gap-2.5">
+      <div className="flex items-center gap-2 md:gap-3">
         {/* Role Switcher */}
         <button
           onClick={onToggleRole}
           aria-label={`Toggle role, currently ${userRole}`}
           title="Click to toggle Dispatcher / Observer mode"
-          className={`flex items-center gap-1 px-2 py-1 border font-mono text-[9.5px] font-bold cursor-pointer transition-colors ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 border font-mono text-[11px] font-bold cursor-pointer transition-colors ${
             userRole === 'dispatcher'
-              ? 'bg-blue-950/60 border-blue-500 text-blue-400 hover:bg-blue-900/60'
-              : 'bg-[#18181A] border-[#333333] text-gray-400 hover:text-white'
+              ? 'bg-blue-950/80 border-blue-400 text-blue-300 hover:bg-blue-900'
+              : 'bg-[#1e1e24] border-[#444444] text-slate-200 hover:text-white'
           }`}
         >
           {userRole === 'dispatcher' ? (
             <>
-              <UserCheck className="w-3 h-3 text-blue-400" />
+              <UserCheck className="w-3.5 h-3.5 text-blue-300" />
               <span>MTC DISPATCHER</span>
             </>
           ) : (
             <>
-              <Eye className="w-3 h-3 text-gray-400" />
+              <Eye className="w-3.5 h-3.5 text-slate-200" />
               <span>OBSERVER</span>
             </>
           )}
@@ -158,13 +158,13 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onToggleMute}
           aria-label={isAudioMuted ? 'Unmute MTC audio' : 'Mute MTC audio'}
           title={isAudioMuted ? 'Audio Alerts Muted' : 'Audio Alerts Active'}
-          className={`p-1.5 border font-mono text-[10px] cursor-pointer transition-colors ${
+          className={`p-2 border font-mono text-xs cursor-pointer transition-colors ${
             isAudioMuted
-              ? 'bg-yellow-950/40 border-yellow-600 text-yellow-400'
-              : 'bg-black border-[#333333] text-gray-300 hover:text-white'
+              ? 'bg-yellow-950/60 border-yellow-500 text-yellow-300'
+              : 'bg-black border-[#444444] text-slate-200 hover:text-white'
           }`}
         >
-          {isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+          {isAudioMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
         </button>
 
         {/* Kiosk / Fullscreen toggle */}
@@ -172,35 +172,35 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={toggleFullscreen}
           aria-label={isFullscreen ? 'Exit full screen kiosk mode' : 'Enter full screen kiosk mode'}
           title="Toggle Kiosk Display Mode"
-          className="p-1.5 bg-black border border-[#333333] text-gray-300 hover:text-white cursor-pointer transition-colors"
+          className="p-2 bg-black border border-[#444444] text-slate-200 hover:text-white cursor-pointer transition-colors"
         >
-          {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
 
         {/* Emergency Stop Action Button */}
         <button
           onClick={onOpenEmergencyModal}
           aria-label="Open emergency all-pit stop protocol"
-          className={`flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] font-bold border transition-colors cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[11px] font-bold border transition-colors cursor-pointer ${
             isEmergencyActive
-              ? 'bg-red-700 text-white border-red-500 animate-pulse'
-              : 'bg-red-950/80 hover:bg-red-900 border-red-600 text-red-300'
+              ? 'bg-red-600 text-white border-red-400 animate-pulse'
+              : 'bg-red-950 hover:bg-red-900 border-red-500 text-red-200'
           }`}
         >
-          <AlertOctagon className="w-3.5 h-3.5 text-white" />
+          <AlertOctagon className="w-4 h-4 text-white" />
           <span className="hidden sm:inline">
             {isEmergencyActive ? 'E-STOP ACTIVE' : 'ALL-PIT E-STOP'}
           </span>
         </button>
 
         {/* Live Ticking Clock */}
-        <div className="flex items-center gap-1.5 border-l border-[#262626] pl-2 md:pl-3">
-          <Clock className="w-3.5 h-3.5 text-blue-400 hidden sm:block" aria-hidden="true" />
+        <div className="flex items-center gap-2 border-l border-[#333333] pl-2.5 md:pl-3.5">
+          <Clock className="w-4 h-4 text-blue-400 hidden sm:block" aria-hidden="true" />
           <div className="flex flex-col text-right font-mono">
-            <span className="text-[11px] md:text-[12px] font-light leading-none text-[#E0E0E0]">
+            <span className="text-xs md:text-sm font-semibold leading-none text-white">
               {istTimeStr}
             </span>
-            <span className="text-[8.5px] text-[#888888] leading-tight hidden sm:block">
+            <span className="text-[11px] text-slate-300 font-medium leading-tight hidden sm:block">
               {utcTimeStr}
             </span>
           </div>

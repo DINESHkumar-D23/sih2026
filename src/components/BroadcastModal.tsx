@@ -35,12 +35,12 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
     >
       <div className="w-full max-w-lg bg-[#0A0A0B] border border-[#262626] shadow-2xl overflow-hidden text-[#E0E0E0]">
         {/* Header */}
-        <div className="p-2.5 bg-[#0F0F10] border-b border-[#262626] flex items-center justify-between">
+        <div className="p-3 bg-[#0F0F10] border-b border-[#262626] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Megaphone className="w-4 h-4 text-blue-400" aria-hidden="true" />
             <span
               id="broadcast-title"
-              className="font-mono text-[12px] font-bold text-blue-400 uppercase tracking-wider"
+              className="font-mono text-sm font-bold text-blue-400 uppercase tracking-wider"
             >
               PRIORITY ALL-PIT BROADCAST (VHF CH 04)
             </span>
@@ -48,18 +48,18 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Close broadcast dialog"
-            className="p-1 hover:bg-[#18181A] text-[#888888] hover:text-white transition-colors cursor-pointer"
+            className="p-1 hover:bg-[#18181A] text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-3 flex flex-col gap-2.5">
-          <div className="flex items-center justify-between font-mono text-[9px] text-[#888888]">
+        <div className="p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between font-mono text-xs text-slate-300 font-semibold">
             <span>TARGET: ALL PIT DUMPERS + SHOVELS + PIT SUPERVISORS</span>
-            <span className="text-yellow-400 flex items-center gap-1 font-bold">
-              <Radio className="w-3 h-3 text-yellow-400" aria-hidden="true" /> 156.20 MHz OVERRIDE
+            <span className="text-yellow-400 flex items-center gap-1.5 font-bold">
+              <Radio className="w-3.5 h-3.5 text-yellow-400" aria-hidden="true" /> 156.20 MHz OVERRIDE
             </span>
           </div>
 
@@ -68,21 +68,21 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
             value={message}
             aria-label="Broadcast transmission message"
             onChange={(e) => setMessage(e.target.value)}
-            className="w-full bg-black border border-[#262626] p-2 font-mono text-[11px] text-[#E0E0E0] focus:outline-hidden focus:border-blue-500"
+            className="w-full bg-black border border-[#333333] p-2.5 font-mono text-xs sm:text-sm text-white font-medium focus:outline-hidden focus:border-blue-500 leading-relaxed"
             placeholder="Type priority dispatch transmission..."
           />
 
-          <div className="flex flex-col gap-1">
-            <span className="font-mono text-[9px] text-[#888888] uppercase font-bold">
+          <div className="flex flex-col gap-1.5">
+            <span className="font-mono text-xs text-slate-400 uppercase font-bold">
               PRESET QUICK TRANSMISSIONS:
             </span>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               {quickAlerts.map((preset, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setMessage(preset)}
-                  className="text-left p-1.5 bg-black hover:bg-[#18181A] border border-[#222222] font-mono text-[9.5px] text-[#A3A3A3] hover:text-blue-400 transition-colors cursor-pointer"
+                  className="text-left p-2 bg-black hover:bg-[#18181A] border border-[#262626] hover:border-blue-500/50 font-mono text-xs text-slate-200 hover:text-blue-300 font-medium transition-colors cursor-pointer leading-snug"
                 >
                   {preset}
                 </button>
@@ -92,11 +92,11 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-2.5 bg-[#0F0F10] border-t border-[#262626] flex items-center justify-between gap-2">
+        <div className="p-3 bg-[#0F0F10] border-t border-[#262626] flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="bg-[#18181A] hover:bg-black text-[#E0E0E0] font-mono text-[10px] font-semibold py-1.5 px-3 border border-[#333333] cursor-pointer"
+            className="bg-[#18181A] hover:bg-black text-white font-mono text-xs font-bold py-2 px-3.5 border border-[#333333] cursor-pointer"
           >
             CANCEL
           </button>
@@ -109,9 +109,9 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                 onClose();
               }
             }}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-mono text-[10px] font-bold py-1.5 px-3 flex items-center gap-1.5 cursor-pointer border border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs font-bold py-2 px-4 flex items-center gap-2 cursor-pointer border border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
-            <Send className="w-3 h-3" />
+            <Send className="w-3.5 h-3.5" />
             TRANSMIT PRIORITY DISPATCH
           </button>
         </div>
