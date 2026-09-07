@@ -120,213 +120,260 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   }, '');
 
   // --------------------------------------------------------------------------
-  // LEAFLET SATELLITE MAP INITIALIZATION & UPDATE
+  // LEAFLET SATELLITE MAP INITIALIZATION & CLEANUP
   // --------------------------------------------------------------------------
+  // Cleanup on unmount
   useEffect(() => {
+    return () => {
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.remove();
+        } catch {
+          // ignore
+        }
+        mapInstanceRef.current = null;
+        vehicleMarkersRef.current = {};
+        staticMarkersRef.current = [];
+        conflictLineRef.current = null;
+        haulRoadPolylineRef.current = null;
+      }
+    };
+  }, []);
+
+  // Initialize or re-size Leaflet map ONLY when user switches to satellite mode
+  useEffect(() => {
+    if (displayMode !== 'satellite') return;
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
-
-      const map = L.map(mapContainerRef.current, {
-        center: mine.center,
-        zoom: mine.zoom,
-        zoomControl: false,
-        attributionControl: false,
-      });
-
-      L.control.zoom({ position: 'topright' }).addTo(map);
-
-      // High-resolution Esri World Imagery (Satellite)
-      L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        {
-          maxZoom: 19,
-          attribution: 'Esri World Imagery &mdash; NMDC Open-Cast Iron Ore Projects',
+      try {
+        // Clear any dangling leaflet id on container
+        if ((mapContainerRef.current as any)._leaflet_id) {
+          try {
+            delete (mapContainerRef.current as any)._leaflet_id;
+          } catch {
+            (mapContainerRef.current as any)._leaflet_id = undefined;
+          }
         }
-      ).addTo(map);
 
-      // Haul Road Incline Path Polyline
+        const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
+
+        const map = L.map(mapContainerRef.current, {
+          center: mine.center,
+          zoom: mine.zoom,
+          zoomControl: false,
+          attributionControl: false,
+        });
+
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // High-resolution Esri World Imagery (Satellite)
+        L.tileLayer(
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          {
+            maxZoom: 19,
+            attribution: 'Esri World Imagery &mdash; NMDC Open-Cast Iron Ore Projects',
+          }
+        ).addTo(map);
+
+        // Haul Road Incline Path Polyline
+        const pathGps = INCLINE_TRACK.points.map((pt) => {
+          const { lat, lng } = projectCanvasToGps(pt.x, pt.y, activeMine);
+          return [lat, lng] as [number, number];
+        });
+
+        haulRoadPolylineRef.current = L.polyline(pathGps, {
+          color: '#f59e0b',
+          weight: 6,
+          opacity: 0.85,
+          dashArray: '8, 8',
+        }).addTo(map);
+
+        // Shovel 01 Marker
+        const shovelGps = projectCanvasToGps(120, 520, activeMine);
+        const shovelIcon = L.divIcon({
+          className: 'leaflet-shovel-icon',
+          html: `
+            <div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#052e16;border:2px solid #4ade80;color:#86efac;font-family:monospace;font-size:10px;font-weight:bold;box-shadow:0 4px 14px rgba(0,0,0,0.8);">
+              SHV1
+            </div>
+          `,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
+        });
+        const shvMarker = L.marker([shovelGps.lat, shovelGps.lng], { icon: shovelIcon })
+          .addTo(map)
+          .bindPopup(`<b style="color:black;font-family:monospace;">ELECTRIC ROPE SHOVEL 01<br/>${mine.name} Floor</b>`);
+
+        // Crusher 1 / Processing Plant Marker
+        const crusherGps = projectCanvasToGps(580, 50, activeMine);
+        const crusherIcon = L.divIcon({
+          className: 'leaflet-crusher-icon',
+          html: `
+            <div style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:#172554;border:2px solid #60a5fa;color:#93c5fd;font-family:monospace;font-size:10px;font-weight:bold;box-shadow:0 4px 14px rgba(0,0,0,0.8);">
+              PLT1
+            </div>
+          `,
+          iconSize: [38, 38],
+          iconAnchor: [19, 19],
+        });
+        const cruMarker = L.marker([crusherGps.lat, crusherGps.lng], { icon: crusherIcon })
+          .addTo(map)
+          .bindPopup(`<b style="color:black;font-family:monospace;">PRIMARY CRUSHER &amp; SCREENING DECK<br/>${mine.name} Rim</b>`);
+
+        // Passing Bays
+        const bayAlphaGps = projectCanvasToGps(PASSING_BAY_ALPHA.x, PASSING_BAY_ALPHA.y, activeMine);
+        const bayBetaGps = projectCanvasToGps(PASSING_BAY_BETA.x, PASSING_BAY_BETA.y, activeMine);
+
+        const makeBayIcon = (name: string) =>
+          L.divIcon({
+            className: 'leaflet-bay-icon',
+            html: `<div style="padding:2px 6px;background:rgba(23,37,84,0.9);border:1px solid #60a5fa;color:#bfdbfe;font-family:monospace;font-size:9px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.7);">${name}</div>`,
+            iconSize: [80, 20],
+            iconAnchor: [40, 10],
+          });
+
+        const mBayA = L.marker([bayAlphaGps.lat, bayAlphaGps.lng], { icon: makeBayIcon('BAY 07-B (ALPHA)') }).addTo(map);
+        const mBayB = L.marker([bayBetaGps.lat, bayBetaGps.lng], { icon: makeBayIcon('BAY 04-A (BETA)') }).addTo(map);
+
+        staticMarkersRef.current = [shvMarker, cruMarker, mBayA, mBayB];
+        mapInstanceRef.current = map;
+      } catch (err) {
+        console.error('Safe Leaflet initialization notice:', err);
+      }
+    }
+
+    // Invalidate size once visible
+    const timer = setTimeout(() => {
+      try {
+        mapInstanceRef.current?.invalidateSize();
+      } catch {
+        // ignore
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [displayMode, activeMine]);
+
+  // Update map view & markers when activeMine changes (if map is mounted)
+  useEffect(() => {
+    if (displayMode !== 'satellite') return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    try {
+      const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
+      map.flyTo(mine.center, mine.zoom, { duration: 1.2 });
+
+      // Update road line
       const pathGps = INCLINE_TRACK.points.map((pt) => {
         const { lat, lng } = projectCanvasToGps(pt.x, pt.y, activeMine);
         return [lat, lng] as [number, number];
       });
+      if (haulRoadPolylineRef.current) {
+        haulRoadPolylineRef.current.setLatLngs(pathGps);
+      }
 
-      haulRoadPolylineRef.current = L.polyline(pathGps, {
-        color: '#f59e0b',
-        weight: 6,
-        opacity: 0.85,
-        dashArray: '8, 8',
-      }).addTo(map);
-
-      // Shovel 01 Marker
+      // Update static markers
       const shovelGps = projectCanvasToGps(120, 520, activeMine);
-      const shovelIcon = L.divIcon({
-        className: 'leaflet-shovel-icon',
-        html: `
-          <div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#052e16;border:2px solid #4ade80;color:#86efac;font-family:monospace;font-size:10px;font-weight:bold;box-shadow:0 4px 14px rgba(0,0,0,0.8);">
-            SHV1
-          </div>
-        `,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-      });
-      const shvMarker = L.marker([shovelGps.lat, shovelGps.lng], { icon: shovelIcon })
-        .addTo(map)
-        .bindPopup(`<b style="color:black;font-family:monospace;">ELECTRIC ROPE SHOVEL 01<br/>${mine.name} Floor</b>`);
-
-      // Crusher 1 / Processing Plant Marker
       const crusherGps = projectCanvasToGps(580, 50, activeMine);
-      const crusherIcon = L.divIcon({
-        className: 'leaflet-crusher-icon',
-        html: `
-          <div style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:#172554;border:2px solid #60a5fa;color:#93c5fd;font-family:monospace;font-size:10px;font-weight:bold;box-shadow:0 4px 14px rgba(0,0,0,0.8);">
-            PLT1
-          </div>
-        `,
-        iconSize: [38, 38],
-        iconAnchor: [19, 19],
-      });
-      const cruMarker = L.marker([crusherGps.lat, crusherGps.lng], { icon: crusherIcon })
-        .addTo(map)
-        .bindPopup(`<b style="color:black;font-family:monospace;">PRIMARY CRUSHER &amp; SCREENING DECK<br/>${mine.name} Rim</b>`);
-
-      // Passing Bays
       const bayAlphaGps = projectCanvasToGps(PASSING_BAY_ALPHA.x, PASSING_BAY_ALPHA.y, activeMine);
       const bayBetaGps = projectCanvasToGps(PASSING_BAY_BETA.x, PASSING_BAY_BETA.y, activeMine);
 
-      const makeBayIcon = (name: string) =>
-        L.divIcon({
-          className: 'leaflet-bay-icon',
-          html: `<div style="padding:2px 6px;background:rgba(23,37,84,0.9);border:1px solid #60a5fa;color:#bfdbfe;font-family:monospace;font-size:9px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.7);">${name}</div>`,
-          iconSize: [80, 20],
-          iconAnchor: [40, 10],
+      if (staticMarkersRef.current.length >= 4) {
+        staticMarkersRef.current[0].setLatLng([shovelGps.lat, shovelGps.lng]);
+        staticMarkersRef.current[1].setLatLng([crusherGps.lat, crusherGps.lng]);
+        staticMarkersRef.current[2].setLatLng([bayAlphaGps.lat, bayAlphaGps.lng]);
+        staticMarkersRef.current[3].setLatLng([bayBetaGps.lat, bayBetaGps.lng]);
+      }
+    } catch (err) {
+      console.error('Safe map update notice:', err);
+    }
+  }, [activeMine, displayMode]);
+
+  // Update vehicles on the Leaflet map ONLY when satellite mode is active
+  useEffect(() => {
+    if (displayMode !== 'satellite') return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    try {
+      vehicles.forEach((v) => {
+        const { lat, lng } = projectCanvasToGps(v.x, v.y, activeMine);
+        const isHazard = v.hazardEnvelope;
+        const isHeld = v.state === 'HELD_BY_MTC';
+        const color = isHazard ? '#ef4444' : isHeld ? '#eab308' : v.payloadTons > 0 ? '#3b82f6' : '#22c55e';
+
+        const iconHtml = `
+          <div style="transform: rotate(${v.headingDeg}deg); position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <!-- Truck body -->
+            <div style="width: 24px; height: 32px; border-radius: 2px; border: 2px solid ${color}; background: ${isHazard ? '#7f1d1d' : '#09090b'}; box-shadow: 0 0 10px ${color}80; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 2px 0;">
+              <div style="width: 14px; height: 8px; background: #facc15; border-radius: 1px;"></div>
+              <div style="width: 16px; height: 12px; background: ${v.payloadTons > 0 ? '#881337' : '#44403c'}; border-radius: 1px;"></div>
+            </div>
+            <!-- Label tag -->
+            <div style="transform: rotate(-${v.headingDeg}deg); position: absolute; top: -20px; padding: 1px 4px; background: rgba(0,0,0,0.9); font-size: 10px; font-family: monospace; font-weight: bold; color: white; border: 1px solid ${color}; white-space: nowrap;">
+              ${v.id} ${v.speedKmh.toFixed(0)}k
+            </div>
+          </div>
+        `;
+
+        const customIcon = L.divIcon({
+          className: 'leaflet-custom-vehicle',
+          html: iconHtml,
+          iconSize: [28, 36],
+          iconAnchor: [14, 18],
         });
 
-      const mBayA = L.marker([bayAlphaGps.lat, bayAlphaGps.lng], { icon: makeBayIcon('BAY 07-B (ALPHA)') }).addTo(map);
-      const mBayB = L.marker([bayBetaGps.lat, bayBetaGps.lng], { icon: makeBayIcon('BAY 04-A (BETA)') }).addTo(map);
-
-      staticMarkersRef.current = [shvMarker, cruMarker, mBayA, mBayB];
-      mapInstanceRef.current = map;
-    }
-  }, []);
-
-  // Update map view & markers when activeMine changes
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
-    map.flyTo(mine.center, mine.zoom, { duration: 1.2 });
-
-    // Update road line
-    const pathGps = INCLINE_TRACK.points.map((pt) => {
-      const { lat, lng } = projectCanvasToGps(pt.x, pt.y, activeMine);
-      return [lat, lng] as [number, number];
-    });
-    if (haulRoadPolylineRef.current) {
-      haulRoadPolylineRef.current.setLatLngs(pathGps);
-    }
-
-    // Update static markers
-    const shovelGps = projectCanvasToGps(120, 520, activeMine);
-    const crusherGps = projectCanvasToGps(580, 50, activeMine);
-    const bayAlphaGps = projectCanvasToGps(PASSING_BAY_ALPHA.x, PASSING_BAY_ALPHA.y, activeMine);
-    const bayBetaGps = projectCanvasToGps(PASSING_BAY_BETA.x, PASSING_BAY_BETA.y, activeMine);
-
-    if (staticMarkersRef.current.length >= 4) {
-      staticMarkersRef.current[0].setLatLng([shovelGps.lat, shovelGps.lng]);
-      staticMarkersRef.current[1].setLatLng([crusherGps.lat, crusherGps.lng]);
-      staticMarkersRef.current[2].setLatLng([bayAlphaGps.lat, bayAlphaGps.lng]);
-      staticMarkersRef.current[3].setLatLng([bayBetaGps.lat, bayBetaGps.lng]);
-    }
-  }, [activeMine]);
-
-  // Update vehicles on the Leaflet map
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    vehicles.forEach((v) => {
-      const { lat, lng } = projectCanvasToGps(v.x, v.y, activeMine);
-      const isHazard = v.hazardEnvelope;
-      const isHeld = v.state === 'HELD_BY_MTC';
-      const color = isHazard ? '#ef4444' : isHeld ? '#eab308' : v.payloadTons > 0 ? '#3b82f6' : '#22c55e';
-
-      const iconHtml = `
-        <div style="transform: rotate(${v.headingDeg}deg); position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-          <!-- Truck body -->
-          <div style="width: 24px; height: 32px; border-radius: 2px; border: 2px solid ${color}; background: ${isHazard ? '#7f1d1d' : '#09090b'}; box-shadow: 0 0 10px ${color}80; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 2px 0;">
-            <div style="width: 14px; height: 8px; background: #facc15; border-radius: 1px;"></div>
-            <div style="width: 16px; height: 12px; background: ${v.payloadTons > 0 ? '#881337' : '#44403c'}; border-radius: 1px;"></div>
-          </div>
-          <!-- Label tag -->
-          <div style="transform: rotate(-${v.headingDeg}deg); position: absolute; top: -20px; padding: 1px 4px; background: rgba(0,0,0,0.9); font-size: 10px; font-family: monospace; font-weight: bold; color: white; border: 1px solid ${color}; white-space: nowrap;">
-            ${v.id} ${v.speedKmh.toFixed(0)}k
-          </div>
-        </div>
-      `;
-
-      const customIcon = L.divIcon({
-        className: 'leaflet-custom-vehicle',
-        html: iconHtml,
-        iconSize: [28, 36],
-        iconAnchor: [14, 18],
+        if (vehicleMarkersRef.current[v.id]) {
+          vehicleMarkersRef.current[v.id].setLatLng([lat, lng]);
+          vehicleMarkersRef.current[v.id].setIcon(customIcon);
+        } else {
+          const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+          marker.on('click', () => onSelectVehicle(v));
+          vehicleMarkersRef.current[v.id] = marker;
+        }
       });
 
-      if (vehicleMarkersRef.current[v.id]) {
-        vehicleMarkersRef.current[v.id].setLatLng([lat, lng]);
-        vehicleMarkersRef.current[v.id].setIcon(customIcon);
-      } else {
-        const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-        marker.on('click', () => onSelectVehicle(v));
-        vehicleMarkersRef.current[v.id] = marker;
-      }
-    });
-
-    // Handle conflict line on satellite map
-    if (activeConflict && activeConflict.active) {
-      const vA = vehicles.find((v) => v.id === activeConflict.vehicleAId);
-      const vB = vehicles.find((v) => v.id === activeConflict.vehicleBId);
-      if (vA && vB) {
-        const gpsA = projectCanvasToGps(vA.x, vA.y, activeMine);
-        const gpsB = projectCanvasToGps(vB.x, vB.y, activeMine);
-        if (conflictLineRef.current) {
-          conflictLineRef.current.setLatLngs([
-            [gpsA.lat, gpsA.lng],
-            [gpsB.lat, gpsB.lng],
-          ]);
-        } else {
-          conflictLineRef.current = L.polyline(
-            [
+      // Handle conflict line on satellite map
+      if (activeConflict && activeConflict.active) {
+        const vA = vehicles.find((v) => v.id === activeConflict.vehicleAId);
+        const vB = vehicles.find((v) => v.id === activeConflict.vehicleBId);
+        if (vA && vB) {
+          const gpsA = projectCanvasToGps(vA.x, vA.y, activeMine);
+          const gpsB = projectCanvasToGps(vB.x, vB.y, activeMine);
+          if (conflictLineRef.current) {
+            conflictLineRef.current.setLatLngs([
               [gpsA.lat, gpsA.lng],
               [gpsB.lat, gpsB.lng],
-            ],
-            { color: '#ef4444', weight: 3, dashArray: '5, 5' }
-          ).addTo(map);
+            ]);
+          } else {
+            conflictLineRef.current = L.polyline(
+              [
+                [gpsA.lat, gpsA.lng],
+                [gpsB.lat, gpsB.lng],
+              ],
+              { color: '#ef4444', weight: 3, dashArray: '5, 5' }
+            ).addTo(map);
+          }
         }
+      } else if (conflictLineRef.current) {
+        conflictLineRef.current.remove();
+        conflictLineRef.current = null;
       }
-    } else if (conflictLineRef.current) {
-      conflictLineRef.current.remove();
-      conflictLineRef.current = null;
+    } catch (err) {
+      console.error('Safe vehicle marker update notice:', err);
     }
-  }, [vehicles, activeConflict, onSelectVehicle, activeMine]);
-
-  // Invalidate Leaflet size when switching to satellite mode
-  useEffect(() => {
-    if (displayMode === 'satellite' && mapInstanceRef.current) {
-      const timer = setTimeout(() => {
-        mapInstanceRef.current?.invalidateSize();
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [displayMode]);
+  }, [vehicles, activeConflict, onSelectVehicle, activeMine, displayMode]);
 
   // Reset Leaflet to active mine center
   const handleResetSatelliteView = () => {
     if (!mapInstanceRef.current) return;
-    const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
-    mapInstanceRef.current.setView(mine.center, mine.zoom, { animate: true });
+    try {
+      const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
+      mapInstanceRef.current.setView(mine.center, mine.zoom, { animate: true });
+    } catch (err) {
+      console.error('Reset satellite view notice:', err);
+    }
   };
 
   return (
