@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { X, Truck, AlertTriangle, ShieldCheck, Gauge, Thermometer, Radio, Navigation, ShieldAlert } from 'lucide-react';
+import { X, Truck, AlertTriangle, ShieldCheck, Gauge, Thermometer, Radio, Navigation, ShieldAlert, Flag, CheckCircle2 } from 'lucide-react';
 import { VehicleTwin, UserRole } from '../types';
+import { HAUL_CHECKPOINTS, INCLINE_TRACK } from '../utils/kinematics';
 
 interface VehicleDetailModalProps {
   vehicle: VehicleTwin | null;
@@ -37,7 +38,7 @@ export const VehicleDetailModal: React.FC<VehicleDetailModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="vehicle-detail-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs select-none"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs select-none"
     >
       <div className="w-full max-w-lg bg-[#0A0A0B] border border-[#262626] shadow-2xl overflow-hidden text-[#E0E0E0]">
         {/* Modal Header */}
@@ -170,6 +171,59 @@ export const VehicleDetailModal: React.FC<VehicleDetailModalProps> = ({
                 className="bg-blue-500 h-full transition-all duration-300"
                 style={{ width: `${Math.max(2, vehicle.pathProgress * 100)}%` }}
               />
+            </div>
+          </div>
+
+          {/* Checkpoint Passage Tracing */}
+          <div className="bg-black p-3 border border-[#2a2a30] flex flex-col gap-2 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-[#222226] pb-1.5">
+              <span className="text-cyan-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Flag className="w-3.5 h-3.5 text-cyan-400" />
+                HAUL INCLINE CHECKPOINT TRACE
+              </span>
+              <span className="text-slate-400 text-[11px]">
+                {vehicle.direction === 1 ? 'UPHILL TO CRUSHER' : 'DOWNHILL TO FLOOR'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {HAUL_CHECKPOINTS.map((cp) => {
+                const hasCrossed =
+                  vehicle.direction === 1
+                    ? vehicle.pathProgress >= cp.progress
+                    : vehicle.pathProgress <= cp.progress;
+
+                return (
+                  <div
+                    key={cp.id}
+                    className={`p-2 border flex flex-col gap-1 rounded-xs transition-colors ${
+                      hasCrossed
+                        ? 'bg-green-950/30 border-green-500/70 text-green-200'
+                        : 'bg-[#111114] border-[#2b2b33] text-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[11px]">{cp.code}</span>
+                      <span
+                        className={`text-[9px] font-bold px-1 py-0.2 rounded-xs border ${
+                          hasCrossed
+                            ? 'bg-green-900 text-green-200 border-green-500'
+                            : 'bg-black/60 text-slate-500 border-slate-700'
+                        }`}
+                      >
+                        {hasCrossed ? 'CROSSED ✓' : 'PENDING'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-300 font-medium truncate" title={cp.name}>
+                      {cp.shortName}
+                    </div>
+                    <div className="text-[9px] text-slate-400 flex justify-between">
+                      <span>RL {cp.elevationRL}m</span>
+                      <span>{cp.speedLimitKmh} km/h</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

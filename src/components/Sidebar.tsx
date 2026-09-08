@@ -12,6 +12,7 @@ import {
   Radio,
   CloudRain,
   ExternalLink,
+  CalendarCheck,
 } from 'lucide-react';
 import { NavScreen, UserRole, WeatherData } from '../types';
 
@@ -48,6 +49,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Traffic Radar',
       icon: Radar,
       hasPulse: true,
+    },
+    {
+      id: 'daily-mine-plan' as NavScreen,
+      label: 'Daily Mine Plan',
+      icon: CalendarCheck,
+      badge: 'PLANNER',
     },
     {
       id: 'haulage-production' as NavScreen,

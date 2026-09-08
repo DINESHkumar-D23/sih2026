@@ -26,6 +26,70 @@ export const INCLINE_KNOTS: Point[] = [
 export const PASSING_BAY_ALPHA = { x: 450, y: 285, name: 'BAY 07-B (HAIRPIN 3)', t: 0.5 };
 export const PASSING_BAY_BETA = { x: 240, y: 470, name: 'BAY 04-A (BENCH 07)', t: 0.22 };
 
+// Defined Haul Incline Checkpoints for vehicle crossing and passage tracing
+export const HAUL_CHECKPOINTS = [
+  {
+    id: 'CP-01',
+    code: 'CP-1',
+    name: 'Pit Floor Sump Gate',
+    shortName: 'Pit Sump',
+    progress: 0.08,
+    elevationRL: 1050,
+    speedLimitKmh: 20,
+    description: 'Exit from Shovel 01 loading floor to main ramp',
+  },
+  {
+    id: 'CP-02',
+    code: 'CP-2',
+    name: 'Bench 08 Ramp Exit',
+    shortName: 'Bench 08',
+    progress: 0.25,
+    elevationRL: 1110,
+    speedLimitKmh: 18,
+    description: 'Transition from Bench 08 to mid-elevation ramp',
+  },
+  {
+    id: 'CP-03',
+    code: 'CP-3',
+    name: 'Passing Bay Beta (04-A)',
+    shortName: 'Bay Beta',
+    progress: 0.42,
+    elevationRL: 1150,
+    speedLimitKmh: 15,
+    description: 'Mid-incline passing bay entry gate',
+  },
+  {
+    id: 'CP-04',
+    code: 'CP-4',
+    name: 'Hairpin 3 Blind Apex',
+    shortName: 'Hairpin 3',
+    progress: 0.58,
+    elevationRL: 1180,
+    speedLimitKmh: 12,
+    description: 'Critical 11% gradient switchback blind apex',
+  },
+  {
+    id: 'CP-05',
+    code: 'CP-5',
+    name: 'Passing Bay Alpha (07-B)',
+    shortName: 'Bay Alpha',
+    progress: 0.75,
+    elevationRL: 1225,
+    speedLimitKmh: 15,
+    description: 'Upper incline collision interlock refuge bay',
+  },
+  {
+    id: 'CP-06',
+    code: 'CP-6',
+    name: 'Crusher 1 Hopper Gate',
+    shortName: 'Crusher Rim',
+    progress: 0.92,
+    elevationRL: 1270,
+    speedLimitKmh: 10,
+    description: 'Primary Crusher Hopper entry gate',
+  },
+];
+
 // Calculate sampled arc length table for smooth constant-velocity Catmull-Rom spline interpolation
 export function computeSplineSamples(knots: Point[], samplesPerSeg = 30) {
   const points: { x: number; y: number; elevationRL: number; s: number }[] = [];

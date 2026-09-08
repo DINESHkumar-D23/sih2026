@@ -31,7 +31,7 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="broadcast-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs select-none"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs select-none"
     >
       <div className="w-full max-w-lg bg-[#0A0A0B] border border-[#262626] shadow-2xl overflow-hidden text-[#E0E0E0]">
         {/* Header */}

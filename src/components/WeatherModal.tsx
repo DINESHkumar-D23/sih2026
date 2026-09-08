@@ -52,7 +52,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="weather-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

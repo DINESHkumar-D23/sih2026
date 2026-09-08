@@ -2,11 +2,23 @@
 
 export type NavScreen =
   | 'traffic-radar'
+  | 'daily-mine-plan'
   | 'haulage-production'
   | 'clearance-queue'
   | 'crusher-hoppers'
   | 'trip-logs'
   | 'settings';
+
+export interface HaulCheckpoint {
+  id: string;
+  code: string;
+  name: string;
+  shortName: string;
+  progress: number; // 0 to 1 along track
+  elevationRL: number;
+  speedLimitKmh: number;
+  description: string;
+}
 
 export type UserRole = 'dispatcher' | 'observer';
 

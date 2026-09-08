@@ -31,7 +31,7 @@ export const EmergencyStopModal: React.FC<EmergencyStopModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="estop-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs select-none"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs select-none"
     >
       <div className="w-full max-w-md bg-[#0A0A0B] border border-red-600 shadow-2xl overflow-hidden text-[#E0E0E0]">
         {/* Header */}

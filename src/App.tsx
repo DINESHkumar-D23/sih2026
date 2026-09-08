@@ -38,6 +38,7 @@ import { OperationalRibbon } from './components/OperationalRibbon';
 import { RadarScreen } from './components/RadarScreen';
 import { ClearanceQueueScreen } from './components/ClearanceQueueScreen';
 import { HaulageProductionScreen } from './components/HaulageProductionScreen';
+import { DailyMinePlanScreen } from './components/DailyMinePlanScreen';
 import { CrusherHoppersScreen } from './components/CrusherHoppersScreen';
 import { TripLogsScreen } from './components/TripLogsScreen';
 import { SettingsScreen } from './components/SettingsScreen';
@@ -62,6 +63,7 @@ export function App() {
   const [vehicles, setVehicles] = useState<VehicleTwin[]>(INITIAL_VEHICLES);
   const [tripLogs, setTripLogs] = useState<TripLogEntry[]>(INITIAL_TRIP_LOGS);
   const [totalHauledTons, setTotalHauledTons] = useState<number>(31200);
+  const [targetTons, setTargetTons] = useState<number>(40000);
   const [highGradeTons, setHighGradeTons] = useState<number>(18450);
   const [mediumGradeTons, setMediumGradeTons] = useState<number>(8250);
   const [wasteTons, setWasteTons] = useState<number>(4500);
@@ -647,10 +649,19 @@ export function App() {
                 onClearVehicle={handleClearVehicle}
                 onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
                 totalHauledTons={totalHauledTons}
-                targetTons={40000}
+                targetTons={targetTons}
                 radioNotice={radioNotice}
                 userRole={settings.role}
                 weather={weather}
+              />
+            )}
+
+            {currentScreen === 'daily-mine-plan' && (
+              <DailyMinePlanScreen
+                currentHauledTons={totalHauledTons}
+                currentTargetTons={targetTons}
+                onUpdateTargetTons={(newTgt) => setTargetTons(newTgt)}
+                isAudioMuted={settings.isAudioMuted}
               />
             )}
 
@@ -670,7 +681,7 @@ export function App() {
                 highGradeTons={highGradeTons}
                 mediumGradeTons={mediumGradeTons}
                 wasteTons={wasteTons}
-                targetTons={40000}
+                targetTons={targetTons}
                 tripLogs={tripLogs}
               />
             )}

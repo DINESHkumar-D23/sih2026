@@ -19,6 +19,10 @@ import {
   RotateCcw,
   Compass,
   MapPin,
+  Flag,
+  Milestone,
+  CheckCircle2,
+  ChevronRight,
 } from 'lucide-react';
 import L from 'leaflet';
 import { VehicleTwin, ConflictIncident, RadioToast, UserRole, WeatherData } from '../types';
@@ -26,6 +30,8 @@ import {
   INCLINE_TRACK,
   PASSING_BAY_ALPHA,
   PASSING_BAY_BETA,
+  HAUL_CHECKPOINTS,
+  samplePointAtDistance,
   projectCanvasToGps,
   GEO_BOUNDS,
   NMDC_MINES,
@@ -69,6 +75,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   // Layer toggles
   const [showBenchLines, setShowBenchLines] = useState(true);
   const [showPassingBays, setShowPassingBays] = useState(true);
+  const [showCheckpoints, setShowCheckpoints] = useState(true);
   const [showBrakingRings, setShowBrakingRings] = useState(true);
   const [showWeatherFx, setShowWeatherFx] = useState(true);
   const [showHeadlights, setShowHeadlights] = useState(true);
@@ -80,6 +87,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   const conflictLineRef = useRef<L.Polyline | null>(null);
   const haulRoadPolylineRef = useRef<L.Polyline | null>(null);
   const staticMarkersRef = useRef<L.Marker[]>([]);
+  const checkpointMarkersRef = useRef<L.Marker[]>([]);
 
   const isDispatcher = userRole === 'dispatcher';
   const currentMineInfo = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
@@ -118,6 +126,45 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
     return idx === 0 ? `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}` : `${acc} L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
   }, '');
 
+  // Live Haul Route Checkpoint Passage & Crossing Calculation
+  const checkpointPassageData = HAUL_CHECKPOINTS.map((cp) => {
+    const pt = samplePointAtDistance(cp.progress * INCLINE_TRACK.totalLength);
+    const gps = projectCanvasToGps(pt.x, pt.y, activeMine);
+
+    // Filter vehicles that have crossed this checkpoint in their current run
+    const crossedVehicles = vehicles.filter((v) => {
+      if (v.direction === 1) {
+        return v.pathProgress >= cp.progress;
+      } else {
+        return v.pathProgress <= cp.progress;
+      }
+    });
+
+    // Determine nearest approaching vehicle
+    let nearestApproaching: { vehicle: VehicleTwin; distM: number } | null = null;
+    vehicles.forEach((v) => {
+      const isHeadingToward =
+        (v.direction === 1 && v.pathProgress < cp.progress) ||
+        (v.direction === -1 && v.pathProgress > cp.progress);
+      if (isHeadingToward) {
+        const distM = Math.round(Math.abs(v.pathProgress - cp.progress) * INCLINE_TRACK.totalLength);
+        if (!nearestApproaching || distM < nearestApproaching.distM) {
+          nearestApproaching = { vehicle: v, distM };
+        }
+      }
+    });
+
+    return {
+      ...cp,
+      x: pt.x,
+      y: pt.y,
+      gps,
+      crossedVehicles,
+      crossedCount: crossedVehicles.length,
+      nearestApproaching,
+    };
+  });
+
   // --------------------------------------------------------------------------
   // LEAFLET SATELLITE MAP INITIALIZATION & CLEANUP
   // --------------------------------------------------------------------------
@@ -133,6 +180,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         mapInstanceRef.current = null;
         vehicleMarkersRef.current = {};
         staticMarkersRef.current = [];
+        checkpointMarkersRef.current = [];
         conflictLineRef.current = null;
         haulRoadPolylineRef.current = null;
       }
@@ -235,7 +283,39 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         const mBayA = L.marker([bayAlphaGps.lat, bayAlphaGps.lng], { icon: makeBayIcon('BAY 07-B (ALPHA)') }).addTo(map);
         const mBayB = L.marker([bayBetaGps.lat, bayBetaGps.lng], { icon: makeBayIcon('BAY 04-A (BETA)') }).addTo(map);
 
+        // Checkpoints CP-01 to CP-06
+        const makeCpIcon = (cp: (typeof HAUL_CHECKPOINTS)[0]) =>
+          L.divIcon({
+            className: 'leaflet-checkpoint-icon',
+            html: `
+              <div style="position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;">
+                <div style="padding:1.5px 5px;background:rgba(9,9,11,0.95);border:1.5px solid #0284c7;border-radius:4px;color:#38bdf8;font-family:monospace;font-size:9px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.8);margin-bottom:2px;display:flex;align-items:center;gap:3px;">
+                  <span>🚩 ${cp.code}</span>
+                </div>
+                <div style="width:14px;height:14px;border-radius:50%;background:#0284c7;border:2px solid #ffffff;box-shadow:0 0 8px #0284c7;display:flex;align-items:center;justify-content:center;">
+                  <div style="width:4px;height:4px;border-radius:50%;background:#ffffff;"></div>
+                </div>
+              </div>
+            `,
+            iconSize: [54, 34],
+            iconAnchor: [27, 28],
+          });
+
+        const cpMarkers = HAUL_CHECKPOINTS.map((cp) => {
+          const pt = samplePointAtDistance(cp.progress * INCLINE_TRACK.totalLength);
+          const gps = projectCanvasToGps(pt.x, pt.y, activeMine);
+          return L.marker([gps.lat, gps.lng], { icon: makeCpIcon(cp) })
+            .addTo(map)
+            .bindPopup(
+              `<b style="color:#0284c7;font-family:monospace;">CHECKPOINT ${cp.code}: ${cp.name}</b><br/>` +
+              `<span style="color:black;font-family:monospace;font-size:11px;">` +
+              `Elevation: RL ${cp.elevationRL}m &bull; Speed Cap: ${cp.speedLimitKmh} km/h<br/>` +
+              `${cp.description}</span>`
+            );
+        });
+
         staticMarkersRef.current = [shvMarker, cruMarker, mBayA, mBayB];
+        checkpointMarkersRef.current = cpMarkers;
         mapInstanceRef.current = map;
       } catch (err) {
         console.error('Safe Leaflet initialization notice:', err);
@@ -284,6 +364,15 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         staticMarkersRef.current[2].setLatLng([bayAlphaGps.lat, bayAlphaGps.lng]);
         staticMarkersRef.current[3].setLatLng([bayBetaGps.lat, bayBetaGps.lng]);
       }
+
+      // Update checkpoint marker positions
+      HAUL_CHECKPOINTS.forEach((cp, idx) => {
+        if (checkpointMarkersRef.current[idx]) {
+          const pt = samplePointAtDistance(cp.progress * INCLINE_TRACK.totalLength);
+          const gps = projectCanvasToGps(pt.x, pt.y, activeMine);
+          checkpointMarkersRef.current[idx].setLatLng([gps.lat, gps.lng]);
+        }
+      });
     } catch (err) {
       console.error('Safe map update notice:', err);
     }
@@ -300,18 +389,36 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         const { lat, lng } = projectCanvasToGps(v.x, v.y, activeMine);
         const isHazard = v.hazardEnvelope;
         const isHeld = v.state === 'HELD_BY_MTC';
-        const color = isHazard ? '#ef4444' : isHeld ? '#eab308' : v.payloadTons > 0 ? '#3b82f6' : '#22c55e';
+        const color = isHazard ? '#ef4444' : isHeld ? '#f59e0b' : v.payloadTons > 0 ? '#2563eb' : '#16a34a';
+        const puckBg = isHazard ? '#450a0a' : isHeld ? '#451a03' : v.payloadTons > 0 ? '#172554' : '#052e16';
+        const iconStroke = isHazard ? '#fca5a5' : isHeld ? '#fde047' : v.payloadTons > 0 ? '#93c5fd' : '#86efac';
 
+        // Authentic Google Maps GPS Navigation Puck Vehicle Icon
         const iconHtml = `
-          <div style="transform: rotate(${v.headingDeg}deg); position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-            <!-- Truck body -->
-            <div style="width: 24px; height: 32px; border-radius: 2px; border: 2px solid ${color}; background: ${isHazard ? '#7f1d1d' : '#09090b'}; box-shadow: 0 0 10px ${color}80; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 2px 0;">
-              <div style="width: 14px; height: 8px; background: #facc15; border-radius: 1px;"></div>
-              <div style="width: 16px; height: 12px; background: ${v.payloadTons > 0 ? '#881337' : '#44403c'}; border-radius: 1px;"></div>
+          <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;">
+            <!-- Google Maps Floating Pill Label Tag -->
+            <div style="position: absolute; top: -23px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 1.5px 6px; background: rgba(9, 9, 11, 0.95); border: 1.5px solid ${color}; border-radius: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 700; color: #ffffff; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.8); z-index: 10; pointer-events: none;">
+              <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${color};"></span>
+              <span>${v.id}</span>
+              <span style="color:${color};font-weight:800;">${v.speedKmh > 0 ? `${v.speedKmh.toFixed(0)}k` : '0k'}</span>
             </div>
-            <!-- Label tag -->
-            <div style="transform: rotate(-${v.headingDeg}deg); position: absolute; top: -20px; padding: 1px 4px; background: rgba(0,0,0,0.9); font-size: 10px; font-family: monospace; font-weight: bold; color: white; border: 1px solid ${color}; white-space: nowrap;">
-              ${v.id} ${v.speedKmh.toFixed(0)}k
+
+            <!-- Google Maps Navigation Puck rotating with heading -->
+            <div style="transform: rotate(${v.headingDeg}deg); position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
+              <!-- Google Maps Directional Heading Pointer Arrow -->
+              <div style="position: absolute; top: -8px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid ${color}; filter: drop-shadow(0 -1px 2px rgba(0,0,0,0.7));"></div>
+
+              <!-- Circular Base Puck -->
+              <div style="width: 30px; height: 30px; border-radius: 50%; background: ${puckBg}; border: 2.5px solid ${color}; box-shadow: 0 3px 10px rgba(0,0,0,0.7), 0 0 10px ${color}80; display: flex; align-items: center; justify-content: center; ${isHazard ? 'animation: pulse 1s infinite;' : ''}">
+                <!-- Top-Down Vehicle Vector (Google Maps Truck Icon) -->
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+                  <path d="M15 18H9" />
+                  <path d="M19 18h2a1 1 0 0 0 1-1v-5l-4-4h-3v10" />
+                  <circle cx="7" cy="18" r="2" fill="${color}" />
+                  <circle cx="17" cy="18" r="2" fill="${color}" />
+                </svg>
+              </div>
             </div>
           </div>
         `;
@@ -319,8 +426,8 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         const customIcon = L.divIcon({
           className: 'leaflet-custom-vehicle',
           html: iconHtml,
-          iconSize: [28, 36],
-          iconAnchor: [14, 18],
+          iconSize: [36, 42],
+          iconAnchor: [18, 24],
         });
 
         if (vehicleMarkersRef.current[v.id]) {
@@ -546,6 +653,15 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               <label className="flex items-center gap-2 cursor-pointer font-medium">
                 <input
                   type="checkbox"
+                  checked={showCheckpoints}
+                  onChange={(e) => setShowCheckpoints(e.target.checked)}
+                  className="w-3.5 h-3.5 cursor-pointer"
+                />
+                <span className="text-cyan-300 font-bold">Route Checkpoints (CP-01 to 06)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
+                <input
+                  type="checkbox"
                   checked={showBrakingRings}
                   onChange={(e) => setShowBrakingRings(e.target.checked)}
                   className="cursor-pointer"
@@ -653,7 +769,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
             </div>
 
             {/* Viewport Area */}
-            <div className="relative w-full aspect-4/3 bg-[#050507] overflow-hidden">
+            <div className="relative isolate z-0 w-full aspect-4/3 bg-[#050507] overflow-hidden">
               {/* ========================================================================= */}
               {/* SATELLITE ORTHOPHOTO VIEW (LEAFLET + ESRI SATELLITE) */}
               {/* ========================================================================= */}
@@ -846,6 +962,42 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                     </g>
                   </g>
 
+                  {/* Haul Route Checkpoint Sensors (CAD Wireframe) */}
+                  {showCheckpoints && (
+                    <g>
+                      {checkpointPassageData.map((cp) => (
+                        <g key={cp.id} transform={`translate(${cp.x}, ${cp.y})`}>
+                          {/* Outer sensor pulse */}
+                          <circle r="12" fill="#0284c7" fillOpacity="0.2" stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="3,3" />
+                          <circle r="4.5" fill="#38bdf8" />
+                          <g transform="translate(0, -18)">
+                            <rect
+                              x="-27"
+                              y="-8"
+                              width="54"
+                              height="16"
+                              rx="3"
+                              fill="#09090b"
+                              stroke="#0284c7"
+                              strokeWidth="1.2"
+                              opacity="0.95"
+                            />
+                            <text
+                              textAnchor="middle"
+                              y="3.5"
+                              fill="#38bdf8"
+                              fontSize="8.5"
+                              fontFamily="monospace"
+                              fontWeight="bold"
+                            >
+                              {cp.code} ({cp.crossedCount})
+                            </text>
+                          </g>
+                        </g>
+                      ))}
+                    </g>
+                  )}
+
                   {/* Pit Floor Electric Rope Shovel 01 */}
                   <g transform="translate(120, 520)">
                     <circle r="16" fill="#14532d" stroke="#22c55e" strokeWidth="2" />
@@ -947,36 +1099,57 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                           />
                         )}
 
-                        {/* Tactical CAD Triangle Marker with Heading */}
+                        {/* Google Maps Style Navigation Puck Marker */}
                         <g transform={`translate(${v.x}, ${v.y}) rotate(${v.headingDeg})`}>
+                          {/* Directional Chevron Pointer */}
                           <polygon
-                            points="0,-14 -10,12 10,12"
+                            points="0,-20 -6,-12 6,-12"
                             fill={markerColor}
                             stroke="#ffffff"
-                            strokeWidth="1.5"
+                            strokeWidth="1"
                           />
-                          <line x1="0" y1="-14" x2="0" y2="-22" stroke={markerColor} strokeWidth="2" />
+                          {/* Circular Base Navigation Puck */}
+                          <circle
+                            r="13"
+                            fill={isHazard ? '#450a0a' : isHeld ? '#451a03' : v.payloadTons > 0 ? '#172554' : '#052e16'}
+                            stroke={markerColor}
+                            strokeWidth="2.5"
+                          />
+                          {/* Top-Down Truck Vector (Google Maps Vehicle Icon) */}
+                          <g transform="translate(-7.5, -7.5) scale(0.65)">
+                            <path
+                              d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2 M15 18H9 M19 18h2a1 1 0 0 0 1-1v-5l-4-4h-3v10"
+                              fill="none"
+                              stroke="#ffffff"
+                              strokeWidth="2.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <circle cx="7" cy="18" r="2.5" fill={markerColor} />
+                            <circle cx="17" cy="18" r="2.5" fill={markerColor} />
+                          </g>
                         </g>
 
-                        {/* Truck ID & Velocity Tag */}
-                        <g>
+                        {/* Google Maps Floating Pill Tag */}
+                        <g transform={`translate(${v.x}, ${v.y - 28})`}>
                           <rect
-                            x={v.x - 28}
-                            y={v.y - 30}
+                            x="-28"
+                            y="-9"
                             width="56"
-                            height="16"
-                            fill="#000000"
+                            height="18"
+                            rx="9"
+                            fill="#09090b"
                             stroke={markerColor}
                             strokeWidth="1.5"
-                            rx="2"
                             opacity="0.95"
                           />
+                          <circle cx="-19" cy="0" r="2.5" fill={markerColor} />
                           <text
-                            x={v.x}
-                            y={v.y - 18}
+                            x="4"
+                            y="3.5"
                             textAnchor="middle"
                             fill={isHazard ? '#fca5a5' : '#ffffff'}
-                            fontSize="10"
+                            fontSize="9"
                             fontFamily="monospace"
                             fontWeight="bold"
                           >
@@ -1042,6 +1215,83 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* HAUL INCLINE ROUTE CHECKPOINTS TRANSIT TRACKER */}
+          <div className="bg-[#0A0A0B] border border-[#333338] p-3 flex flex-col gap-2 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-[#26262b] pb-2">
+              <div className="flex items-center gap-2">
+                <Flag className="w-4 h-4 text-cyan-400" />
+                <span className="font-bold text-white uppercase tracking-wider text-[11px] sm:text-xs">
+                  HAUL ROAD CHECKPOINT TRANSIT TRACKER (CP-01 to CP-06)
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">LIVE DUMPER CROSSING STATUS</span>
+            </div>
+
+            {/* Checkpoints Sequence Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5">
+              {checkpointPassageData.map((cp) => {
+                const isCrossedAny = cp.crossedCount > 0;
+                return (
+                  <div
+                    key={cp.id}
+                    className={`p-2 border flex flex-col gap-1 rounded-xs transition-all ${
+                      isCrossedAny
+                        ? 'bg-[#0e1726]/80 border-cyan-500/60 shadow-xs'
+                        : 'bg-[#111114] border-[#27272f]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-cyan-300 text-[11px] flex items-center gap-1">
+                        <span>{cp.code}</span>
+                      </span>
+                      <span
+                        className={`text-[9px] px-1 py-0.2 font-bold rounded-xs ${
+                          isCrossedAny ? 'bg-cyan-900 text-cyan-200 border border-cyan-600' : 'bg-black/60 text-slate-400'
+                        }`}
+                      >
+                        {cp.crossedCount} PASSED
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-slate-300 font-semibold truncate" title={cp.name}>
+                      {cp.shortName}
+                    </div>
+
+                    <div className="flex justify-between items-center text-[9px] text-slate-400">
+                      <span>RL {cp.elevationRL}m</span>
+                      <span className="text-yellow-400 font-semibold">{cp.speedLimitKmh}k cap</span>
+                    </div>
+
+                    {/* Dumpers that crossed this checkpoint */}
+                    <div className="mt-1 pt-1 border-t border-[#1f2937] flex flex-wrap gap-1 min-h-[22px] items-center">
+                      {cp.crossedVehicles.length > 0 ? (
+                        cp.crossedVehicles.slice(0, 3).map((v) => (
+                          <span
+                            key={v.id}
+                            onClick={() => onSelectVehicle(v)}
+                            className={`text-[9px] font-bold px-1 py-0.2 rounded-xs border cursor-pointer hover:scale-105 transition-transform ${
+                              v.direction === 1
+                                ? 'bg-blue-950 text-blue-200 border-blue-600'
+                                : 'bg-green-950 text-green-200 border-green-600'
+                            }`}
+                            title={`Inspect ${v.id} (${v.direction === 1 ? 'Uphill Loaded' : 'Downhill Empty'}, ${v.speedKmh.toFixed(0)} km/h)`}
+                          >
+                            {v.id} {v.direction === 1 ? '↑' : '↓'}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[9px] text-slate-500 italic">None yet</span>
+                      )}
+                      {cp.crossedVehicles.length > 3 && (
+                        <span className="text-[9px] text-slate-300">+{cp.crossedVehicles.length - 3}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
