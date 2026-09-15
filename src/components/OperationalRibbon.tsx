@@ -1,12 +1,13 @@
 import React from 'react';
-import { Shield, Gauge, CloudRain, Wind, AlertOctagon, Megaphone, Droplets, Thermometer, Zap, Cloud } from 'lucide-react';
-import { WeatherData } from '../types';
+import { Shield, Gauge, CloudRain, Wind, AlertOctagon, Megaphone, Droplets, Thermometer, Zap, Cloud, Eye, Vibrate } from 'lucide-react';
+import { WeatherData, HardwareTelemetry } from '../types';
 
 interface OperationalRibbonProps {
   weather: WeatherData;
   speedLimitKmh?: number;
   onOpenBroadcast?: () => void;
   onOpenWeatherModal?: () => void;
+  telemetry?: HardwareTelemetry;
 }
 
 export const OperationalRibbon: React.FC<OperationalRibbonProps> = ({
@@ -14,6 +15,7 @@ export const OperationalRibbon: React.FC<OperationalRibbonProps> = ({
   speedLimitKmh = 15,
   onOpenBroadcast,
   onOpenWeatherModal,
+  telemetry,
 }) => {
   const isWet = weather.surfaceCondition === 'Wet' || weather.rainMmHr > 1.0;
   const slipLevel = isWet ? (weather.rainMmHr > 10 ? 5 : 4) : 1;
@@ -110,7 +112,40 @@ export const OperationalRibbon: React.FC<OperationalRibbonProps> = ({
       </div>
 
       {/* Safety Interlocks, Weather Details & Quick Broadcast */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Real Hardware Sensor Badges */}
+        {telemetry && (
+          <>
+            {/* LIDAR 8M Distance Indicator */}
+            <div className={`flex items-center gap-1.5 px-2 py-1 border font-mono text-xs ${
+              telemetry.lidar8m.distanceMeters <= 2.0
+                ? 'bg-red-950/80 border-red-500 text-red-200 animate-pulse'
+                : telemetry.lidar8m.distanceMeters <= 4.0
+                ? 'bg-yellow-950/70 border-yellow-500 text-yellow-200'
+                : 'bg-black border-[#333338] text-slate-300'
+            }`}>
+              <Eye className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="font-bold">LIDAR:</span>
+              <strong className="text-white">{telemetry.lidar8m.distanceMeters.toFixed(2)}M</strong>
+            </div>
+
+            {/* Mini Vibration Motor State */}
+            <div className={`flex items-center gap-1.5 px-2 py-1 border font-mono text-xs ${
+              telemetry.vibrationMotors.motor1Active || telemetry.vibrationMotors.motor2Active
+                ? 'bg-red-950/80 border-red-500 text-red-200 animate-pulse'
+                : 'bg-black border-[#333338] text-slate-400'
+            }`}>
+              <Vibrate className={`w-3.5 h-3.5 ${
+                telemetry.vibrationMotors.motor1Active ? 'text-red-400 animate-spin' : 'text-slate-500'
+              }`} />
+              <span className="font-bold hidden sm:inline">HAPTIC:</span>
+              <span className={telemetry.vibrationMotors.motor1Active ? 'text-red-300 font-bold' : 'text-slate-400'}>
+                {telemetry.vibrationMotors.motor1Active ? 'ALERT ON' : 'IDLE'}
+              </span>
+            </div>
+          </>
+        )}
+
         {onOpenWeatherModal && (
           <button
             type="button"

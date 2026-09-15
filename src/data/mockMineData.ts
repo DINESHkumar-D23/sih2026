@@ -17,6 +17,13 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   isAudioMuted: false,
   role: 'dispatcher',
   simSpeedMultiplier: 1.0,
+  googleMapsType: 'hybrid',
+  autoCenterGps: true,
+  serialBaudRate: 115200,
+  lidarWarningThresholdM: 4.0,
+  lidarCriticalThresholdM: 2.0,
+  rolloverThresholdDeg: 15.0,
+  mq135HazardThresholdPpm: 700,
 };
 
 export const INITIAL_VEHICLES: VehicleTwin[] = [

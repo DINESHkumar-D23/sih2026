@@ -13,8 +13,9 @@ import {
   CloudRain,
   ExternalLink,
   CalendarCheck,
+  Cpu,
 } from 'lucide-react';
-import { NavScreen, UserRole, WeatherData } from '../types';
+import { NavScreen, UserRole, WeatherData, HardwareTelemetry } from '../types';
 
 interface SidebarProps {
   currentScreen: NavScreen;
@@ -28,6 +29,7 @@ interface SidebarProps {
   isEmergencyActive?: boolean;
   weather?: WeatherData;
   onOpenWeatherModal?: () => void;
+  telemetry?: HardwareTelemetry;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,45 +44,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isEmergencyActive = false,
   weather,
   onOpenWeatherModal,
+  telemetry,
 }) => {
   const navItems = [
     {
       id: 'traffic-radar' as NavScreen,
-      label: 'Traffic Radar',
+      label: 'Traffic Radar (Google Maps)',
       icon: Radar,
       hasPulse: true,
     },
     {
-      id: 'daily-mine-plan' as NavScreen,
-      label: 'Daily Mine Plan',
-      icon: CalendarCheck,
-      badge: 'PLANNER',
-    },
-    {
-      id: 'haulage-production' as NavScreen,
-      label: 'Haulage & Production',
-      icon: TrendingUp,
-    },
-    {
-      id: 'clearance-queue' as NavScreen,
-      label: 'Clearance Queue',
-      icon: TrafficCone,
-      badge: hazardCount > 0 ? `${hazardCount} HAZARD` : undefined,
-      badgeType: 'error',
-    },
-    {
-      id: 'crusher-hoppers' as NavScreen,
-      label: 'Crusher Hoppers',
-      icon: Factory,
+      id: 'hardware-telemetry' as NavScreen,
+      label: 'Hardware Telemetry Hub',
+      icon: Cpu,
+      badge: telemetry?.connected ? 'ONLINE' : '6 SENSORS',
+      badgeType: telemetry?.connected ? 'success' : 'info',
     },
     {
       id: 'trip-logs' as NavScreen,
-      label: 'Trip Logs',
+      label: 'Real-Time Event Logs',
       icon: FileText,
     },
     {
       id: 'settings' as NavScreen,
-      label: 'System & WS Config',
+      label: 'System & Hardware Config',
       icon: Sliders,
     },
   ];

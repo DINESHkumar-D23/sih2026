@@ -9,18 +9,21 @@ import {
   RadioToast,
   NavScreen,
   UserRole,
+  HardwareTelemetry,
 } from './types';
 import {
   DEFAULT_SETTINGS,
   INITIAL_VEHICLES,
   INITIAL_TRIP_LOGS,
 } from './data/mockMineData';
+import { INITIAL_HARDWARE_TELEMETRY } from './utils/hardwareReceiver';
 import { audioSynth } from './utils/audio';
 import {
   INCLINE_TRACK,
   samplePointAtDistance,
   calculateStoppingDistance,
   PASSING_BAY_ALPHA,
+  projectCanvasToGps,
 } from './utils/kinematics';
 import {
   degToCompass,
@@ -36,10 +39,7 @@ import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { OperationalRibbon } from './components/OperationalRibbon';
 import { RadarScreen } from './components/RadarScreen';
-import { ClearanceQueueScreen } from './components/ClearanceQueueScreen';
-import { HaulageProductionScreen } from './components/HaulageProductionScreen';
-import { DailyMinePlanScreen } from './components/DailyMinePlanScreen';
-import { CrusherHoppersScreen } from './components/CrusherHoppersScreen';
+import { HardwareTelemetryScreen } from './components/HardwareTelemetryScreen';
 import { TripLogsScreen } from './components/TripLogsScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 
@@ -72,6 +72,45 @@ export function App() {
   const [isEmergencyActive, setIsEmergencyActive] = useState<boolean>(false);
   const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
   const [wsStatus, setWsStatus] = useState<'CONNECTED' | 'FALLBACK_SIM'>('FALLBACK_SIM');
+
+  // Real-Time Hardware Telemetry State (6 Sensors)
+  const [hardwareTelemetry, setHardwareTelemetry] = useState<HardwareTelemetry>(INITIAL_HARDWARE_TELEMETRY);
+
+  const handleUpdateHardwareTelemetry = useCallback((data: Partial<HardwareTelemetry>) => {
+    setHardwareTelemetry((prev) => {
+      const next: HardwareTelemetry = {
+        ...prev,
+        ...data,
+        mq135: data.mq135 ? { ...prev.mq135, ...data.mq135 } : prev.mq135,
+        dht22: data.dht22 ? { ...prev.dht22, ...data.dht22 } : prev.dht22,
+        lidar8m: data.lidar8m ? { ...prev.lidar8m, ...data.lidar8m } : prev.lidar8m,
+        neo6mGps: data.neo6mGps ? { ...prev.neo6mGps, ...data.neo6mGps } : prev.neo6mGps,
+        mpu6050: data.mpu6050 ? { ...prev.mpu6050, ...data.mpu6050 } : prev.mpu6050,
+        vibrationMotors: data.vibrationMotors ? { ...prev.vibrationMotors, ...data.vibrationMotors } : prev.vibrationMotors,
+      };
+
+      // Automated Hardware Interlocks:
+      const isLidarHazard = next.lidar8m.distanceMeters <= (settings.lidarCriticalThresholdM || 2.0);
+      const isMpuHazard = Math.abs(next.mpu6050.pitchDeg) > (settings.rolloverThresholdDeg || 15) || Math.abs(next.mpu6050.rollDeg) > (settings.rolloverThresholdDeg || 15);
+      const isMqHazard = next.mq135.ppm > (settings.mq135HazardThresholdPpm || 700);
+
+      if (isLidarHazard || isMpuHazard || isMqHazard) {
+        next.vibrationMotors = {
+          motor1Active: true,
+          motor2Active: true,
+          mode: isLidarHazard ? 'CONTINUOUS_ALARM' : 'INTERMITTENT_ALERT',
+          triggerReason: isLidarHazard
+            ? `LIDAR Obstacle Distance (${next.lidar8m.distanceMeters.toFixed(2)}m < 2.0m)`
+            : isMpuHazard
+            ? `Incline Tilt Warning (${next.mpu6050.pitchDeg.toFixed(1)}°)`
+            : `MQ-135 Gas Hazard (${next.mq135.ppm} PPM)`,
+          lastTriggeredTime: new Date().toLocaleTimeString(),
+        };
+      }
+
+      return next;
+    });
+  }, [settings.lidarCriticalThresholdM, settings.rolloverThresholdDeg, settings.mq135HazardThresholdPpm]);
 
   // Weather State
   const [weather, setWeather] = useState<WeatherData>({
@@ -110,11 +149,13 @@ export function App() {
 
   const conflictChimePlayedRef = useRef(false);
 
-  // Fetch Open-Meteo Weather for Bailadila Sector 14-A (Kirandul: 18.67, 81.25)
+  // Fetch Live Real Weather using GPS Coordinates (Bailadila: 18.67, 81.25 or NEO-6M live fix)
   const fetchWeather = useCallback(async () => {
     try {
+      const gpsLat = hardwareTelemetry.neo6mGps?.latitude ? hardwareTelemetry.neo6mGps.latitude.toFixed(4) : '18.67';
+      const gpsLng = hardwareTelemetry.neo6mGps?.longitude ? hardwareTelemetry.neo6mGps.longitude.toFixed(4) : '81.25';
       const res = await fetch(
-        'https://api.open-meteo.com/v1/forecast?latitude=18.67&longitude=81.25&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility&hourly=temperature_2m,precipitation_probability,rain,wind_speed_10m&forecast_days=1&timezone=Asia%2FKolkata'
+        `https://api.open-meteo.com/v1/forecast?latitude=${gpsLat}&longitude=${gpsLng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility&hourly=temperature_2m,precipitation_probability,rain,wind_speed_10m&forecast_days=1&timezone=Asia%2FKolkata`
       );
       if (!res.ok) throw new Error('Weather fetch failed');
       const data = await res.json();
@@ -608,6 +649,7 @@ export function App() {
         isEmergencyActive={isEmergencyActive}
         weather={weather}
         onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+        telemetry={hardwareTelemetry}
       />
 
       {/* 2. Main Viewport Canvas */}
@@ -636,6 +678,7 @@ export function App() {
             speedLimitKmh={settings.speedClampLimitKmh}
             onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
             onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+            telemetry={hardwareTelemetry}
           />
 
           {/* Active Screen Selection */}
@@ -653,40 +696,17 @@ export function App() {
                 radioNotice={radioNotice}
                 userRole={settings.role}
                 weather={weather}
+                telemetry={hardwareTelemetry}
               />
             )}
 
-            {currentScreen === 'daily-mine-plan' && (
-              <DailyMinePlanScreen
-                currentHauledTons={totalHauledTons}
-                currentTargetTons={targetTons}
-                onUpdateTargetTons={(newTgt) => setTargetTons(newTgt)}
-                isAudioMuted={settings.isAudioMuted}
-              />
-            )}
-
-            {currentScreen === 'clearance-queue' && (
-              <ClearanceQueueScreen
-                vehicles={vehicles}
-                activeConflict={activeConflict}
-                onHoldVehicle={handleHoldVehicle}
-                onClearVehicle={handleClearVehicle}
+            {currentScreen === 'hardware-telemetry' && (
+              <HardwareTelemetryScreen
+                telemetry={hardwareTelemetry}
+                onUpdateTelemetry={handleUpdateHardwareTelemetry}
                 userRole={settings.role}
               />
             )}
-
-            {currentScreen === 'haulage-production' && (
-              <HaulageProductionScreen
-                totalHauledTons={totalHauledTons}
-                highGradeTons={highGradeTons}
-                mediumGradeTons={mediumGradeTons}
-                wasteTons={wasteTons}
-                targetTons={targetTons}
-                tripLogs={tripLogs}
-              />
-            )}
-
-            {currentScreen === 'crusher-hoppers' && <CrusherHoppersScreen />}
 
             {currentScreen === 'trip-logs' && <TripLogsScreen tripLogs={tripLogs} />}
 
@@ -711,6 +731,7 @@ export function App() {
         onClose={() => setIsWeatherModalOpen(false)}
         weather={weather}
         onRefreshWeather={fetchWeather}
+        telemetry={hardwareTelemetry}
       />
 
       {/* Vehicle Telemetry Detail Modal */}

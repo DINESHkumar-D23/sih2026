@@ -15,14 +15,16 @@ import {
   Gauge,
   Waves,
   Zap,
+  Cpu,
 } from 'lucide-react';
-import { WeatherData } from '../types';
+import { WeatherData, HardwareTelemetry } from '../types';
 
 interface WeatherModalProps {
   isOpen: boolean;
   onClose: () => void;
   weather: WeatherData;
   onRefreshWeather: () => Promise<void>;
+  telemetry?: HardwareTelemetry;
 }
 
 export const WeatherModal: React.FC<WeatherModalProps> = ({
@@ -30,6 +32,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
   onClose,
   weather,
   onRefreshWeather,
+  telemetry,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -157,6 +160,49 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* DUAL SOURCE TELEMETRY: HARDWARE SENSOR vs REGIONAL WEATHER */}
+          {telemetry && (
+            <div className="bg-[#0e1420] border border-blue-500/60 p-3 flex flex-col md:flex-row items-center justify-between gap-3 font-mono text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-950 border border-blue-400 text-cyan-300 shrink-0">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-white uppercase flex items-center gap-2">
+                    <span>ON-BOARD DHT22 HARDWARE VALIDATION</span>
+                    <span className="text-[10px] px-1.5 py-0.2 bg-blue-900 text-blue-200 border border-blue-400 font-semibold">
+                      PHYSICAL SENSOR
+                    </span>
+                  </div>
+                  <span className="text-slate-300 text-[11px]">
+                    Vehicle cabin/chassis microclimate vs. mountain crest open-air meteorological station.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                <div className="bg-black/80 px-3 py-1.5 border border-[#333338] text-center">
+                  <span className="text-[10px] text-slate-400 block">DHT22 ON-BOARD</span>
+                  <span className="text-white font-bold text-sm">
+                    {telemetry.dht22.temperatureC.toFixed(1)}°C / {telemetry.dht22.humidityPercent}% RH
+                  </span>
+                </div>
+                <div className="bg-black/80 px-3 py-1.5 border border-[#333338] text-center">
+                  <span className="text-[10px] text-slate-400 block">STATION READING</span>
+                  <span className="text-cyan-300 font-bold text-sm">
+                    {weather.temperatureC.toFixed(1)}°C / {weather.relativeHumidity}% RH
+                  </span>
+                </div>
+                <div className="bg-black/80 px-3 py-1.5 border border-[#333338] text-center">
+                  <span className="text-[10px] text-slate-400 block">VARIANCE</span>
+                  <span className="text-yellow-300 font-bold text-sm">
+                    Δ {(Math.abs(telemetry.dht22.temperatureC - weather.temperatureC)).toFixed(1)}°C
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 4 Technical Pillar Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">

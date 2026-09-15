@@ -2,12 +2,10 @@
 
 export type NavScreen =
   | 'traffic-radar'
-  | 'daily-mine-plan'
-  | 'haulage-production'
-  | 'clearance-queue'
-  | 'crusher-hoppers'
+  | 'hardware-telemetry'
   | 'trip-logs'
   | 'settings';
+
 
 export interface HaulCheckpoint {
   id: string;
@@ -161,6 +159,74 @@ export interface ChokePointQueue {
   avgWaitMins: number;
 }
 
+export interface HardwareTelemetry {
+  // 1. MQ 135 - Air Quality Sensor
+  mq135: {
+    ppm: number;
+    airQualityStatus: 'Clean' | 'Moderate' | 'Poor' | 'Hazardous';
+    smokeDetected: boolean;
+    co2EstimatedPpm: number;
+    rawVoltage: number;
+  };
+  // 2. DHT22 - Temperature & Humidity Sensor Module
+  dht22: {
+    temperatureC: number;
+    humidityPercent: number;
+    heatIndexC: number;
+    dewPointC: number;
+  };
+  // 3. LIDAR Sensor - 8M Range
+  lidar8m: {
+    distanceMeters: number; // 0.00 to 8.00m
+    signalStrength: number; // 0 to 100%
+    obstacleAlert: 'CLEAR' | 'PROXIMITY_WARNING' | 'COLLISION_CRITICAL';
+    warningThresholdM: number;
+    criticalThresholdM: number;
+  };
+  // 4. NEO 6M - GPS Module
+  neo6mGps: {
+    latitude: number;
+    longitude: number;
+    altitudeM: number;
+    speedKmh: number;
+    headingDeg: number;
+    satellites: number;
+    hdop: number;
+    fixQuality: 'No Fix' | '2D Fix' | '3D Fix' | 'DGPS Fix';
+    lastFixTime: string;
+    rawNmea?: string;
+  };
+  // 5. MPU 6050 - Accelerometer & Gyroscope
+  mpu6050: {
+    accelX_g: number;
+    accelY_g: number;
+    accelZ_g: number;
+    gyroX_dps: number;
+    gyroY_dps: number;
+    gyroZ_dps: number;
+    pitchDeg: number;
+    rollDeg: number;
+    inclineGradePercent: number; // tan(pitch)*100
+    vibrationG: number;
+    rolloverHazard: boolean;
+  };
+  // 6. Mini Vibration Motors (2 Pcs)
+  vibrationMotors: {
+    motor1Active: boolean;
+    motor2Active: boolean;
+    mode: 'OFF' | 'INTERMITTENT_ALERT' | 'CONTINUOUS_ALARM';
+    triggerReason: string;
+    lastTriggeredTime?: string;
+  };
+  // Hardware Ingestion Metadata
+  connectionSource: 'WEB_SERIAL_USB' | 'WEBSOCKET' | 'SIMULATOR';
+  connected: boolean;
+  serialPortName?: string;
+  baudRate: number;
+  lastReceivedTime: string;
+  packetsReceived: number;
+}
+
 export interface SystemSettings {
   wsUrl: string;
   wsEnabled: boolean;
@@ -171,6 +237,16 @@ export interface SystemSettings {
   isAudioMuted: boolean;
   role: UserRole;
   simSpeedMultiplier: number;
+  // Google Maps Configuration
+  googleMapsType: 'hybrid' | 'satellite' | 'terrain' | 'roadmap';
+  googleMapsApiKey?: string;
+  autoCenterGps: boolean;
+  // Hardware Telemetry Configuration
+  serialBaudRate: 9600 | 115200 | 57600;
+  lidarWarningThresholdM: number;
+  lidarCriticalThresholdM: number;
+  rolloverThresholdDeg: number;
+  mq135HazardThresholdPpm: number;
 }
 
 export interface RadioToast {

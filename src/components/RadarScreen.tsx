@@ -23,9 +23,15 @@ import {
   Milestone,
   CheckCircle2,
   ChevronRight,
+  Cpu,
+  Wind,
+  Thermometer,
+  Vibrate,
+  Usb,
+  Globe,
 } from 'lucide-react';
 import L from 'leaflet';
-import { VehicleTwin, ConflictIncident, RadioToast, UserRole, WeatherData } from '../types';
+import { VehicleTwin, ConflictIncident, RadioToast, UserRole, WeatherData, HardwareTelemetry } from '../types';
 import {
   INCLINE_TRACK,
   PASSING_BAY_ALPHA,
@@ -49,6 +55,7 @@ interface RadarScreenProps {
   radioNotice: RadioToast | null;
   userRole?: UserRole;
   weather?: WeatherData;
+  telemetry?: HardwareTelemetry;
 }
 
 export const RadarScreen: React.FC<RadarScreenProps> = ({
@@ -63,12 +70,15 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   radioNotice,
   userRole = 'dispatcher',
   weather,
+  telemetry,
 }) => {
   // Active NMDC Mine Site
   const [activeMine, setActiveMine] = useState<'14A' | '14C' | 'DEP5' | 'DONI'>('14A');
 
   // Display Mode: Live Satellite Orthophoto (GIS) or Tactical Radar (CAD)
   const [displayMode, setDisplayMode] = useState<'satellite' | 'radar'>('satellite');
+  const [googleMapsType, setGoogleMapsType] = useState<'hybrid' | 'satellite' | 'terrain' | 'roadmap'>('hybrid');
+  const [followGps, setFollowGps] = useState<boolean>(true);
   const [viewPreset, setViewPreset] = useState<'overview' | 'hairpin3' | 'crusher'>('overview');
   const [statusFilter, setStatusFilter] = useState<'all' | 'critical' | 'warning' | 'queued' | 'hauling'>('all');
 
@@ -83,11 +93,26 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   // Leaflet references
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const googleTileLayerRef = useRef<L.TileLayer | null>(null);
   const vehicleMarkersRef = useRef<{ [key: string]: L.Marker }>({});
   const conflictLineRef = useRef<L.Polyline | null>(null);
   const haulRoadPolylineRef = useRef<L.Polyline | null>(null);
   const staticMarkersRef = useRef<L.Marker[]>([]);
   const checkpointMarkersRef = useRef<L.Marker[]>([]);
+
+  const getGoogleMapsTileUrl = (type: 'hybrid' | 'satellite' | 'terrain' | 'roadmap') => {
+    switch (type) {
+      case 'satellite':
+        return 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}';
+      case 'terrain':
+        return 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}';
+      case 'roadmap':
+        return 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
+      case 'hybrid':
+      default:
+        return 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+    }
+  };
 
   const isDispatcher = userRole === 'dispatcher';
   const currentMineInfo = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
@@ -214,14 +239,13 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
 
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        // High-resolution Esri World Imagery (Satellite)
-        L.tileLayer(
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          {
-            maxZoom: 19,
-            attribution: 'Esri World Imagery &mdash; NMDC Open-Cast Iron Ore Projects',
-          }
-        ).addTo(map);
+        // High-resolution Google Maps Layer (Hybrid Satellite / Satellite / Terrain / Roadmap)
+        const gTile = L.tileLayer(getGoogleMapsTileUrl(googleMapsType), {
+          maxZoom: 20,
+          attribution: 'Map data &copy; Google Maps &mdash; NMDC Open-Cast Projects',
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        }).addTo(map);
+        googleTileLayerRef.current = gTile;
 
         // Haul Road Incline Path Polyline
         const pathGps = INCLINE_TRACK.points.map((pt) => {
@@ -332,6 +356,23 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
     }, 150);
     return () => clearTimeout(timer);
   }, [displayMode, activeMine]);
+
+  // Switch Google Maps Layer Type (Hybrid, Satellite, Terrain, Roadmap)
+  useEffect(() => {
+    if (googleTileLayerRef.current) {
+      googleTileLayerRef.current.setUrl(getGoogleMapsTileUrl(googleMapsType));
+    }
+  }, [googleMapsType]);
+
+  // Follow NEO-6M GPS coordinates on Google Maps
+  useEffect(() => {
+    if (displayMode !== 'satellite' || !followGps) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (telemetry?.neo6mGps?.latitude && telemetry?.neo6mGps?.longitude) {
+      map.panTo([telemetry.neo6mGps.latitude, telemetry.neo6mGps.longitude], { animate: true });
+    }
+  }, [displayMode, followGps, telemetry?.neo6mGps?.latitude, telemetry?.neo6mGps?.longitude]);
 
   // Update map view & markers when activeMine changes (if map is mounted)
   useEffect(() => {
@@ -505,45 +546,129 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 w-full">
         {/* ==================== LEFT COLUMN (col-span-3) ==================== */}
         <div className="lg:col-span-3 flex flex-col gap-2.5">
-          {/* CARD 1: SHIFT HAULAGE PROGRESS */}
+          {/* CARD 1: REAL-TIME HARDWARE SENSOR TELEMETRY */}
           <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
             <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-blue-400" />
-                <span className="font-mono font-bold text-xs text-blue-300 uppercase tracking-wider">
-                  Shift Haulage Progress
+                <Cpu className="w-4 h-4 text-cyan-400" />
+                <span className="font-mono font-bold text-xs text-cyan-300 uppercase tracking-wider">
+                  Real Hardware Stream
                 </span>
               </div>
-              <span className="font-mono text-xs bg-black text-blue-300 px-2 py-0.5 border border-blue-500/40 font-bold">
-                {progressPercent.toFixed(1)}% TARGET
+              <span
+                className={`font-mono text-xs px-2 py-0.5 border font-bold ${
+                  telemetry?.connected
+                    ? 'bg-green-950 text-green-300 border-green-500 animate-pulse'
+                    : 'bg-blue-950 text-blue-300 border-blue-500'
+                }`}
+              >
+                {telemetry?.connected ? `${telemetry.connectionSource}` : 'SIMULATED FEED'}
               </span>
             </div>
 
-            <div className="p-3 flex flex-col gap-2">
-              <div className="flex flex-col gap-1.5 bg-[#0c0c0e] p-2.5 border border-[#2a2a30]">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-slate-300 tracking-wider uppercase font-bold">
-                    HAULED TO DATE
-                  </span>
-                  <span className="font-mono text-xs text-blue-300 bg-[#141418] px-1.5 py-0.5 border border-[#333338] font-bold">
-                    TARGET {targetTons.toLocaleString()} T
-                  </span>
-                </div>
-
-                <div className="flex items-baseline justify-between mt-1">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono text-2xl text-white font-bold tracking-tight">
-                      {totalHauledTons.toLocaleString()}
-                    </span>
-                    <span className="font-mono text-xs text-slate-300 font-bold">TONS</span>
+            <div className="p-2.5 flex flex-col gap-2 font-mono text-xs">
+              {/* Sensor Quick Row 1: LIDAR 8M & MPU-6050 */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {/* LIDAR 8M */}
+                <div className={`p-2 bg-black border flex flex-col gap-0.5 ${
+                  (telemetry?.lidar8m.distanceMeters ?? 5.4) <= 2.0
+                    ? 'border-red-500 bg-red-950/40'
+                    : (telemetry?.lidar8m.distanceMeters ?? 5.4) <= 4.0
+                    ? 'border-yellow-500 bg-yellow-950/20'
+                    : 'border-[#2a2a30]'
+                }`}>
+                  <div className="flex justify-between items-center text-[10px] text-slate-400">
+                    <span className="font-bold uppercase">LIDAR 8M</span>
+                    <Eye className="w-3 h-3 text-yellow-400" />
                   </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-white font-bold text-base">
+                      {telemetry?.lidar8m.distanceMeters.toFixed(2) ?? '5.42'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">METERS</span>
+                  </div>
+                  <span className={`text-[9px] font-bold ${
+                    (telemetry?.lidar8m.distanceMeters ?? 5.4) <= 2.0 ? 'text-red-400' : 'text-green-400'
+                  }`}>
+                    {(telemetry?.lidar8m.distanceMeters ?? 5.4) <= 2.0 ? 'COLLISION HAZARD' : 'CLEAR PATH'}
+                  </span>
                 </div>
 
-                <div className="w-full bg-[#18181A] h-2 overflow-hidden border border-[#333333] mt-1">
-                  <div
-                    className="bg-blue-500 h-full transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  />
+                {/* MPU-6050 Incline */}
+                <div className="p-2 bg-black border border-[#2a2a30] flex flex-col gap-0.5">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400">
+                    <span className="font-bold uppercase">MPU-6050</span>
+                    <Activity className="w-3 h-3 text-purple-400" />
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-white font-bold text-base">
+                      {telemetry?.mpu6050.inclineGradePercent.toFixed(1) ?? '10.9'}%
+                    </span>
+                    <span className="text-[10px] text-slate-400">GRADE</span>
+                  </div>
+                  <span className="text-[9px] text-purple-300 font-semibold">
+                    PITCH: {telemetry?.mpu6050.pitchDeg.toFixed(1) ?? '6.2'}° &bull; ROLL: {telemetry?.mpu6050.rollDeg.toFixed(1) ?? '1.4'}°
+                  </span>
+                </div>
+              </div>
+
+              {/* Sensor Quick Row 2: MQ-135 & DHT22 */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {/* MQ-135 Air */}
+                <div className="p-2 bg-black border border-[#2a2a30] flex flex-col gap-0.5">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400">
+                    <span className="font-bold uppercase">MQ-135 AIR</span>
+                    <Wind className="w-3 h-3 text-cyan-400" />
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-white font-bold text-base">
+                      {telemetry?.mq135.ppm ?? 395}
+                    </span>
+                    <span className="text-[10px] text-slate-400">PPM</span>
+                  </div>
+                  <span className={`text-[9px] font-bold ${
+                    (telemetry?.mq135.ppm ?? 395) > 700 ? 'text-red-400' : 'text-green-400'
+                  }`}>
+                    {telemetry?.mq135.airQualityStatus ?? 'Clean'}
+                  </span>
+                </div>
+
+                {/* DHT22 Temp / Humidity */}
+                <div className="p-2 bg-black border border-[#2a2a30] flex flex-col gap-0.5">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400">
+                    <span className="font-bold uppercase">DHT22 METER</span>
+                    <Thermometer className="w-3 h-3 text-orange-400" />
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-white font-bold text-base">
+                      {telemetry?.dht22.temperatureC.toFixed(1) ?? '24.2'}°C
+                    </span>
+                    <span className="text-[10px] text-cyan-400 font-bold">{telemetry?.dht22.humidityPercent ?? 78}% RH</span>
+                  </div>
+                  <span className="text-[9px] text-slate-400">
+                    Feels {telemetry?.dht22.heatIndexC ?? 25}°C
+                  </span>
+                </div>
+              </div>
+
+              {/* NEO-6M GPS & Mini Vibration Motors Bar */}
+              <div className="p-2 bg-black border border-[#2a2a30] flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <Navigation className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-slate-300">
+                    NEO-6M: <strong className="text-white">{telemetry?.neo6mGps.satellites ?? 9} Sats</strong> &bull;{' '}
+                    <strong className="text-yellow-300">{telemetry?.neo6mGps.speedKmh.toFixed(0) ?? 14} km/h</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Vibrate className={`w-3.5 h-3.5 ${
+                    telemetry?.vibrationMotors.motor1Active ? 'text-red-400 animate-spin' : 'text-slate-500'
+                  }`} />
+                  <span className={`text-[10px] font-bold ${
+                    telemetry?.vibrationMotors.motor1Active ? 'text-red-300' : 'text-slate-400'
+                  }`}>
+                    {telemetry?.vibrationMotors.motor1Active ? 'HAPTIC ON' : 'HAPTIC IDLE'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -735,35 +860,73 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Visualization Mode Selector */}
-                <div className="flex items-center gap-1 bg-black p-0.5 border border-[#333338] rounded-xs font-mono text-[11px]">
+                {/* Google Maps Layer Type & Mode Selector */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Google Maps Layer Type Switcher */}
+                  {displayMode === 'satellite' && (
+                    <div className="flex items-center gap-0.5 bg-black p-0.5 border border-[#333338] rounded-xs font-mono text-[10px]">
+                      {(['hybrid', 'satellite', 'terrain', 'roadmap'] as const).map((gType) => (
+                        <button
+                          key={gType}
+                          type="button"
+                          onClick={() => setGoogleMapsType(gType)}
+                          className={`px-2 py-0.5 font-bold uppercase transition-all cursor-pointer ${
+                            googleMapsType === gType
+                              ? 'bg-amber-600 text-white shadow-xs'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {gType}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Follow GPS Toggle */}
                   <button
                     type="button"
-                    onClick={() => setDisplayMode('satellite')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 font-bold transition-all cursor-pointer ${
-                      displayMode === 'satellite'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
+                    onClick={() => setFollowGps(!followGps)}
+                    className={`flex items-center gap-1 px-2 py-1 font-mono text-[10px] font-bold border cursor-pointer transition-all ${
+                      followGps
+                        ? 'bg-green-950 text-green-300 border-green-500'
+                        : 'bg-black text-slate-400 border-[#333338]'
                     }`}
-                    title="Live Satellite Orthophoto (Esri World Imagery)"
+                    title="Toggle auto-centering on NEO-6M GPS position"
                   >
-                    <Satellite className="w-3.5 h-3.5" />
-                    <span>SATELLITE</span>
+                    <Navigation className={`w-3 h-3 ${followGps ? 'text-green-400 animate-pulse' : 'text-slate-500'}`} />
+                    <span>{followGps ? 'GPS TRACK ON' : 'GPS TRACK OFF'}</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setDisplayMode('radar')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 font-bold transition-all cursor-pointer ${
-                      displayMode === 'radar'
-                        ? 'bg-slate-700 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                    title="Tactical CAD Wireframe Radar"
-                  >
-                    <Activity className="w-3.5 h-3.5" />
-                    <span>RADAR CAD</span>
-                  </button>
+                  {/* Visualization Mode Selector */}
+                  <div className="flex items-center gap-1 bg-black p-0.5 border border-[#333338] rounded-xs font-mono text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setDisplayMode('satellite')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 font-bold transition-all cursor-pointer ${
+                        displayMode === 'satellite'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Google Maps (Hybrid / Satellite / Terrain)"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>GOOGLE MAPS</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDisplayMode('radar')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 font-bold transition-all cursor-pointer ${
+                        displayMode === 'radar'
+                          ? 'bg-slate-700 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Tactical CAD Wireframe Radar"
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>RADAR CAD</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -771,7 +934,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
             {/* Viewport Area */}
             <div className="relative isolate z-0 w-full aspect-4/3 bg-[#050507] overflow-hidden">
               {/* ========================================================================= */}
-              {/* SATELLITE ORTHOPHOTO VIEW (LEAFLET + ESRI SATELLITE) */}
+              {/* GOOGLE MAPS HYBRID SATELLITE VIEW (LEAFLET + GOOGLE MAPS) */}
               {/* ========================================================================= */}
               <div
                 style={{ display: displayMode === 'satellite' ? 'block' : 'none' }}
@@ -779,17 +942,21 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               >
                 <div ref={mapContainerRef} className="w-full h-full bg-[#0a0a0b]" />
 
-                {/* Satellite HUD Overlay */}
+                {/* Google Maps HUD Overlay */}
                 <div className="absolute top-2 left-2 z-[400] bg-black/90 border border-[#333338] px-3 py-2 flex flex-col gap-0.5 font-mono text-[11px] backdrop-blur-xs shadow-xl max-w-sm">
                   <div className="flex items-center gap-2 text-blue-400 font-bold">
-                    <Satellite className="w-3.5 h-3.5 animate-pulse" />
-                    <span>ESRI SATELLITE // {currentMineInfo.name.toUpperCase()}</span>
+                    <Globe className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                    <span>GOOGLE MAPS // {googleMapsType.toUpperCase()} // {currentMineInfo.name.toUpperCase()}</span>
                   </div>
-                  <div className="text-slate-200">
-                    LOC: {currentMineInfo.location}, {currentMineInfo.state} | DATUM: WGS84
+                  <div className="text-slate-200 text-[10px]">
+                    LOC: {currentMineInfo.location}, {currentMineInfo.state} &bull; WGS84
                   </div>
-                  <div className="text-amber-400 font-semibold text-[10px]">
-                    CENTER: {currentMineInfo.center[0].toFixed(3)}°N, {currentMineInfo.center[1].toFixed(3)}°E | {currentMineInfo.elevationRange}
+                  <div className="text-amber-400 font-semibold text-[10px] flex items-center gap-1">
+                    <span>GPS FIX:</span>
+                    <span className="text-white font-mono">
+                      {telemetry?.neo6mGps ? `${telemetry.neo6mGps.latitude.toFixed(5)}°N, ${telemetry.neo6mGps.longitude.toFixed(5)}°E` : `${currentMineInfo.center[0].toFixed(3)}°N, ${currentMineInfo.center[1].toFixed(3)}°E`}
+                    </span>
+                    <span className="text-cyan-300 ml-1">({telemetry?.neo6mGps.satellites ?? 9} Sats)</span>
                   </div>
                 </div>
 

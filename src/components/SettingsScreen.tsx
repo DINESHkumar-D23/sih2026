@@ -321,6 +321,124 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             )}
           </div>
         </div>
+
+        {/* Card 5: Google Maps Mapping Configuration */}
+        <div className="bg-[#0A0A0B] border border-[#333338] overflow-hidden flex flex-col">
+          <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold text-xs text-amber-300 uppercase tracking-wider">
+                Google Maps &amp; Navigation Layers
+              </span>
+            </div>
+            <span className="font-mono text-xs bg-amber-950 text-amber-200 border border-amber-500 px-2 py-0.5 font-bold">
+              GOOGLE MAPS ENGINE
+            </span>
+          </div>
+
+          <div className="p-3.5 flex flex-col gap-3 font-mono text-xs">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-white font-bold">DEFAULT GOOGLE MAPS LAYER:</span>
+              <div className="grid grid-cols-4 gap-2">
+                {(['hybrid', 'satellite', 'terrain', 'roadmap'] as const).map((layer) => (
+                  <button
+                    key={layer}
+                    type="button"
+                    onClick={() => onUpdateSettings({ googleMapsType: layer })}
+                    className={`py-1.5 text-xs font-bold uppercase border cursor-pointer transition-colors ${
+                      settings.googleMapsType === layer
+                        ? 'bg-amber-600 text-white border-amber-400 shadow-xs'
+                        : 'bg-black text-slate-300 border-[#333338] hover:text-white'
+                    }`}
+                  >
+                    {layer}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between bg-black p-3 border border-[#2a2a30]">
+              <div>
+                <span className="text-white font-bold block text-xs">AUTO-CENTER ON NEO-6M GPS FIX</span>
+                <span className="text-slate-300 text-xs mt-0.5 block">
+                  Automatically keeps the radar map camera centered on the vehicle GPS coordinates
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.autoCenterGps}
+                aria-label="Auto-center on GPS fix"
+                onChange={(e) => onUpdateSettings({ autoCenterGps: e.target.checked })}
+                className="w-4 h-4 cursor-pointer"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gmaps-api-key" className="text-slate-300 text-xs uppercase font-bold">
+                GOOGLE MAPS API KEY (OPTIONAL)
+              </label>
+              <input
+                id="gmaps-api-key"
+                type="password"
+                value={settings.googleMapsApiKey || ''}
+                onChange={(e) => onUpdateSettings({ googleMapsApiKey: e.target.value })}
+                placeholder="AIzaSy..."
+                className="bg-black border border-[#333338] p-2.5 text-white font-mono text-xs focus:outline-hidden font-medium"
+              />
+              <span className="text-xs text-slate-400">
+                High-resolution Google satellite tiles are active by default with zero key required.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 6: Hardware Sensor Thresholds & Baud Rate */}
+        <div className="bg-[#0A0A0B] border border-[#333338] overflow-hidden flex flex-col">
+          <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold text-xs text-cyan-300 uppercase tracking-wider">
+                Hardware Sensors &amp; Serial Baud Rate
+              </span>
+            </div>
+            <span className="font-mono text-xs bg-cyan-950 text-cyan-200 border border-cyan-500 px-2 py-0.5 font-bold">
+              6 SENSORS CALIBRATION
+            </span>
+          </div>
+
+          <div className="p-3.5 flex flex-col gap-3 font-mono text-xs">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-white font-bold">WEB SERIAL (USB COM) BAUD RATE:</span>
+              <div className="grid grid-cols-3 gap-2">
+                {([9600, 57600, 115200] as const).map((baud) => (
+                  <button
+                    key={baud}
+                    type="button"
+                    onClick={() => onUpdateSettings({ serialBaudRate: baud })}
+                    className={`py-1.5 text-xs font-bold border cursor-pointer transition-colors ${
+                      settings.serialBaudRate === baud
+                        ? 'bg-cyan-600 text-white border-cyan-400 shadow-xs'
+                        : 'bg-black text-slate-300 border-[#333338] hover:text-white'
+                    }`}
+                  >
+                    {baud} BAUD
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 bg-black p-2.5 border border-[#2a2a30]">
+              <div className="flex flex-col gap-1">
+                <span className="text-slate-400 text-[11px] font-bold">LIDAR CRITICAL DISTANCE:</span>
+                <span className="text-amber-300 font-bold">{settings.lidarCriticalThresholdM} METERS</span>
+                <span className="text-[10px] text-slate-400">Triggers vibration motors automatically</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-slate-400 text-[11px] font-bold">MPU ROLLOVER ALARM:</span>
+                <span className="text-purple-300 font-bold">{settings.rolloverThresholdDeg}° PITCH/ROLL</span>
+                <span className="text-[10px] text-slate-400">Dynamic incline safety warning</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
