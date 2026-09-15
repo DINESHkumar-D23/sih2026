@@ -260,8 +260,8 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           dashArray: '8, 8',
         }).addTo(map);
 
-        // Shovel 01 Marker
-        const shovelGps = projectCanvasToGps(120, 520, activeMine);
+        // Shovel 01 Marker (Pit Floor extraction face)
+        const shovelGps = projectCanvasToGps(140, 535, activeMine);
         const shovelIcon = L.divIcon({
           className: 'leaflet-shovel-icon',
           html: `
@@ -277,7 +277,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           .bindPopup(`<b style="color:black;font-family:monospace;">ELECTRIC ROPE SHOVEL 01<br/>${mine.name} Floor</b>`);
 
         // Crusher 1 / Processing Plant Marker
-        const crusherGps = projectCanvasToGps(580, 50, activeMine);
+        const crusherGps = projectCanvasToGps(575, 70, activeMine);
         const crusherIcon = L.divIcon({
           className: 'leaflet-crusher-icon',
           html: `
@@ -394,8 +394,8 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
       }
 
       // Update static markers
-      const shovelGps = projectCanvasToGps(120, 520, activeMine);
-      const crusherGps = projectCanvasToGps(580, 50, activeMine);
+      const shovelGps = projectCanvasToGps(140, 535, activeMine);
+      const crusherGps = projectCanvasToGps(575, 70, activeMine);
       const bayAlphaGps = projectCanvasToGps(PASSING_BAY_ALPHA.x, PASSING_BAY_ALPHA.y, activeMine);
       const bayBetaGps = projectCanvasToGps(PASSING_BAY_BETA.x, PASSING_BAY_BETA.y, activeMine);
 
@@ -1113,7 +1113,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                       strokeLinecap="round"
                     />
                     {/* Hairpin 3 Gradient Callout */}
-                    <g transform="translate(440, 280)">
+                    <g transform="translate(405, 260)">
                       <circle r="14" fill="#1e1e24" stroke="#eab308" strokeWidth="1.5" strokeDasharray="4,3" />
                       <text
                         x="0"

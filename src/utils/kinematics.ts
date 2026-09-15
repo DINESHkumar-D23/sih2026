@@ -12,19 +12,23 @@ export interface Point {
 // 3. Hairpin 3 Switchback (RL 1,180m, critical blind curve)
 // 4. Bench 04 Incline (RL 1,220m)
 // 5. Surface Rim Crusher Hopper (RL 1,280m)
+// Key Waypoints accurately aligned to the visible physical haul road in Bailadila Deposit 14-A:
+// Excavated road leads from Shovel 01 in the active bench cut, follows the ramp bench northward,
+// wraps through the hairpins, and enters the Primary Crusher screening deck.
 export const INCLINE_KNOTS: Point[] = [
-  { x: 120, y: 520, elevationRL: 1040 }, // Pit Floor Bench 09 Shovel 01
-  { x: 220, y: 460, elevationRL: 1100 }, // Bench 08 Ramp
-  { x: 340, y: 390, elevationRL: 1140 }, // Hairpin 3 Approach
-  { x: 440, y: 280, elevationRL: 1180 }, // Hairpin 3 Apex Switchback
-  { x: 380, y: 200, elevationRL: 1210 }, // Bench 05 Ramp Incline
-  { x: 480, y: 120, elevationRL: 1250 }, // Surface Rim Approach
-  { x: 580, y: 50, elevationRL: 1280 },  // Primary Crusher 1 Hopper Deck
+  { x: 140, y: 535, elevationRL: 1040 }, // Pit Floor Bench 09 Shovel 01 (active extraction face)
+  { x: 215, y: 475, elevationRL: 1085 }, // Bench 08 Lower Incline Ramp
+  { x: 305, y: 420, elevationRL: 1125 }, // Bench 07 Central Haul Cut
+  { x: 365, y: 345, elevationRL: 1160 }, // Mid-Ramp Switchback Entry
+  { x: 405, y: 260, elevationRL: 1195 }, // Hairpin 3 Switchback Road Cut
+  { x: 460, y: 195, elevationRL: 1225 }, // Upper Bench Incline Terrace
+  { x: 520, y: 130, elevationRL: 1255 }, // Highwall Ramp Road Approach
+  { x: 575, y: 70,  elevationRL: 1280 }, // Primary Crusher 1 Hopper Deck & Stockpile
 ];
 
-// Passing bay locations (t parameter in [0, 1])
-export const PASSING_BAY_ALPHA = { x: 450, y: 285, name: 'BAY 07-B (HAIRPIN 3)', t: 0.5 };
-export const PASSING_BAY_BETA = { x: 240, y: 470, name: 'BAY 04-A (BENCH 07)', t: 0.22 };
+// Passing bay locations (aligned directly along the road bench cut)
+export const PASSING_BAY_ALPHA = { x: 410, y: 255, name: 'BAY 07-B (HAIRPIN 3)', t: 0.55 };
+export const PASSING_BAY_BETA = { x: 220, y: 470, name: 'BAY 04-A (BENCH 07)', t: 0.22 };
 
 // Defined Haul Incline Checkpoints for vehicle crossing and passage tracing
 export const HAUL_CHECKPOINTS = [
