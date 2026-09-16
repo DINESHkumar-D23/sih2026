@@ -100,6 +100,14 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   const staticMarkersRef = useRef<L.Marker[]>([]);
   const checkpointMarkersRef = useRef<L.Marker[]>([]);
 
+  // Real Device GPS (Browser Geolocation API / NEO-6M sensor)
+  const deviceMarkerRef = useRef<L.Marker | null>(null);
+  const deviceAccuracyCircleRef = useRef<L.Circle | null>(null);
+  const [deviceGps, setDeviceGps] = useState<{
+    lat: number; lng: number; accuracy: number; heading: number | null; speed: number | null; source: 'browser' | 'neo6m';
+  } | null>(null);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
   const getGoogleMapsTileUrl = (type: 'hybrid' | 'satellite' | 'terrain' | 'roadmap') => {
     switch (type) {
       case 'satellite':
@@ -523,6 +531,155 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
     }
   };
 
+  // ── REAL DEVICE LOCATION ────────────────────────────────────────────────────
+  // Priority 1: NEO-6M USB sensor (when connected and fix available)
+  // Priority 2: Browser Geolocation API (GPS / WiFi / cell triangulation)
+  useEffect(() => {
+    // If NEO-6M is connected and has a real fix, prefer it
+    if (
+      telemetry?.connected &&
+      telemetry?.neo6mGps?.latitude &&
+      telemetry?.neo6mGps?.longitude &&
+      telemetry?.neo6mGps?.fixQuality !== 'No Fix'
+    ) {
+      setDeviceGps({
+        lat: telemetry.neo6mGps.latitude,
+        lng: telemetry.neo6mGps.longitude,
+        accuracy: telemetry.neo6mGps.hdop * 5, // HDOP → approximate metres
+        heading: telemetry.neo6mGps.headingDeg,
+        speed: telemetry.neo6mGps.speedKmh,
+        source: 'neo6m',
+      });
+      setGeoError(null);
+      return; // NEO-6M is providing data — don't also start browser geolocation
+    }
+
+    // Fallback: use browser Geolocation API (works on phone / laptop GPS)
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation not supported by this browser.');
+      return;
+    }
+
+    setGeoError(null);
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setDeviceGps({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          heading: pos.coords.heading,
+          speed: pos.coords.speed !== null ? pos.coords.speed * 3.6 : null, // m/s → km/h
+          source: 'browser',
+        });
+        setGeoError(null);
+      },
+      (err) => {
+        setGeoError(err.message);
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [
+    telemetry?.connected,
+    telemetry?.neo6mGps?.latitude,
+    telemetry?.neo6mGps?.longitude,
+    telemetry?.neo6mGps?.fixQuality,
+  ]);
+
+  // Render / update the device GPS puck on the Leaflet map
+  useEffect(() => {
+    if (displayMode !== 'satellite') return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (!deviceGps) return;
+
+    try {
+      const heading = deviceGps.heading ?? 0;
+      const speedTxt = deviceGps.speed !== null ? `${deviceGps.speed.toFixed(0)} km/h` : '-- km/h';
+      const srcColor = deviceGps.source === 'neo6m' ? '#22d3ee' : '#a78bfa';
+      const srcLabel = deviceGps.source === 'neo6m' ? 'NEO-6M' : 'GPS';
+
+      const iconHtml = `
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:default;">
+          <!-- Floating label -->
+          <div style="position:absolute;top:-28px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:2px 7px;background:rgba(9,9,11,0.97);border:1.5px solid ${srcColor};border-radius:12px;font-family:ui-monospace,monospace;font-size:10px;font-weight:800;color:#ffffff;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.9);z-index:10;">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${srcColor};animation:ping 1s infinite;"></span>
+            <span>MTC DEVICE</span>
+            <span style="color:${srcColor};">${speedTxt}</span>
+          </div>
+          <!-- Accuracy ring pulse -->
+          <div style="position:absolute;width:48px;height:48px;border-radius:50%;background:${srcColor}22;border:1.5px solid ${srcColor}66;animation:ping 1.5s ease-in-out infinite;"></div>
+          <!-- Puck body rotating with heading -->
+          <div style="transform:rotate(${heading}deg);position:relative;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">
+            <!-- Heading arrow -->
+            <div style="position:absolute;top:-10px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:12px solid ${srcColor};filter:drop-shadow(0 -1px 3px rgba(0,0,0,0.8));"></div>
+            <!-- Circle puck -->
+            <div style="width:34px;height:34px;border-radius:50%;background:#0c0c14;border:2.5px solid ${srcColor};box-shadow:0 0 14px ${srcColor}99,0 3px 10px rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${srcColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/>
+                <path d="M15 18H9"/>
+                <path d="M19 18h2a1 1 0 0 0 1-1v-5l-4-4h-3v10"/>
+                <circle cx="7" cy="18" r="2" fill="${srcColor}"/>
+                <circle cx="17" cy="18" r="2" fill="${srcColor}"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Source badge -->
+          <div style="margin-top:2px;padding:1px 5px;background:rgba(0,0,0,0.85);border:1px solid ${srcColor}55;border-radius:4px;font-family:monospace;font-size:8px;font-weight:700;color:${srcColor};white-space:nowrap;">${srcLabel} LIVE</div>
+        </div>
+      `;
+
+      const icon = L.divIcon({
+        className: 'leaflet-device-puck',
+        html: iconHtml,
+        iconSize: [48, 60],
+        iconAnchor: [24, 38],
+      });
+
+      if (deviceMarkerRef.current) {
+        deviceMarkerRef.current.setLatLng([deviceGps.lat, deviceGps.lng]);
+        deviceMarkerRef.current.setIcon(icon);
+      } else {
+        deviceMarkerRef.current = L.marker([deviceGps.lat, deviceGps.lng], { icon, zIndexOffset: 1000 })
+          .addTo(map)
+          .bindPopup(
+            `<b style="font-family:monospace;color:#7c3aed;">MTC DEVICE — THIS UNIT</b><br/>` +
+            `<span style="font-family:monospace;font-size:11px;color:#333;">` +
+            `Lat: ${deviceGps.lat.toFixed(6)}°N<br/>` +
+            `Lng: ${deviceGps.lng.toFixed(6)}°E<br/>` +
+            `Accuracy: ±${deviceGps.accuracy.toFixed(0)} m<br/>` +
+            `Source: ${deviceGps.source === 'neo6m' ? 'NEO-6M USB Sensor' : 'Browser Geolocation API'}` +
+            `</span>`
+          );
+      }
+
+      // Accuracy radius circle
+      if (deviceAccuracyCircleRef.current) {
+        deviceAccuracyCircleRef.current.setLatLng([deviceGps.lat, deviceGps.lng]);
+        deviceAccuracyCircleRef.current.setRadius(deviceGps.accuracy);
+      } else {
+        deviceAccuracyCircleRef.current = L.circle([deviceGps.lat, deviceGps.lng], {
+          radius: deviceGps.accuracy,
+          color: srcColor,
+          fillColor: srcColor,
+          fillOpacity: 0.06,
+          weight: 1,
+          dashArray: '4, 4',
+        }).addTo(map);
+      }
+
+      // Auto-pan to device if followGps is on
+      if (followGps) {
+        map.panTo([deviceGps.lat, deviceGps.lng], { animate: true });
+      }
+    } catch (err) {
+      console.error('Device GPS marker update error:', err);
+    }
+  }, [deviceGps, displayMode, followGps]);
+
+  // Clean up device marker on unmount (handled in existing cleanup useEffect above)
+
   return (
     <div className="flex flex-col w-full text-[#E0E0E0] select-none pb-3 font-sans">
       {/* Radio Transmission Toast Notification */}
@@ -806,8 +963,8 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           </div>
         </div>
 
-        {/* ==================== CENTER COLUMN (col-span-6) ==================== */}
-        <div className="lg:col-span-6 flex flex-col gap-2">
+        {/* ==================== CENTER COLUMN (col-span-9) ==================== */}
+        <div className="lg:col-span-9 flex flex-col gap-2">
           {/* DISPLAY CANVAS CONTAINER */}
           <div className="bg-[#050507] border border-[#333338] relative overflow-hidden flex flex-col">
             {/* Mine Site Selector Bar & Canvas Header */}
@@ -932,7 +1089,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
             </div>
 
             {/* Viewport Area */}
-            <div className="relative isolate z-0 w-full aspect-4/3 bg-[#050507] overflow-hidden">
+            <div className="relative isolate z-0 w-full h-[75vh] min-h-[520px] bg-[#050507] overflow-hidden">
               {/* ========================================================================= */}
               {/* GOOGLE MAPS HYBRID SATELLITE VIEW (LEAFLET + GOOGLE MAPS) */}
               {/* ========================================================================= */}
@@ -957,6 +1114,16 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                       {telemetry?.neo6mGps ? `${telemetry.neo6mGps.latitude.toFixed(5)}°N, ${telemetry.neo6mGps.longitude.toFixed(5)}°E` : `${currentMineInfo.center[0].toFixed(3)}°N, ${currentMineInfo.center[1].toFixed(3)}°E`}
                     </span>
                     <span className="text-cyan-300 ml-1">({telemetry?.neo6mGps.satellites ?? 9} Sats)</span>
+                  </div>
+                  {/* Device GPS Status */}
+                  <div className={`text-[10px] flex items-center gap-1.5 pt-0.5 border-t border-[#2a2a30] mt-0.5 ${deviceGps ? 'text-green-300' : geoError ? 'text-red-400' : 'text-slate-500'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${deviceGps ? 'bg-green-400 animate-ping' : geoError ? 'bg-red-400' : 'bg-slate-600'}`} />
+                    {deviceGps
+                      ? <span><strong>MTC DEVICE:</strong> {deviceGps.lat.toFixed(5)}°N, {deviceGps.lng.toFixed(5)}°E &bull; ±{deviceGps.accuracy.toFixed(0)}m &bull; <span className={deviceGps.source === 'neo6m' ? 'text-cyan-300' : 'text-purple-300'}>{deviceGps.source === 'neo6m' ? 'NEO-6M' : 'Browser GPS'}</span></span>
+                      : geoError
+                      ? <span>GPS: {geoError}</span>
+                      : <span>Requesting GPS permission...</span>
+                    }
                   </div>
                 </div>
 
