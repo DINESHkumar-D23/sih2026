@@ -72,8 +72,8 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   weather,
   telemetry,
 }) => {
-  // Active NMDC Mine Site
-  const [activeMine, setActiveMine] = useState<'14A' | '14C' | 'DEP5' | 'DONI'>('14A');
+  // Active NMDC Mine Site or Live Field Device Mode
+  const [activeMine, setActiveMine] = useState<'DEVICE' | '14A' | '14C' | 'DEP5' | 'DONI'>('DEVICE');
 
   // Display Mode: Live Satellite Orthophoto (GIS) or Tactical Radar (CAD)
   const [displayMode, setDisplayMode] = useState<'satellite' | 'radar'>('satellite');
@@ -123,7 +123,27 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   };
 
   const isDispatcher = userRole === 'dispatcher';
-  const currentMineInfo = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
+  const isDeviceMode = activeMine === 'DEVICE';
+  const currentMineInfo =
+    isDeviceMode && deviceGps
+      ? {
+          id: 'DEVICE',
+          name: 'MTC Live Field Unit',
+          subName: `Field Telemetry • ${deviceGps.source === 'neo6m' ? 'NEO-6M Hardware' : 'Real-Time Browser GPS'}`,
+          location: `${deviceGps.lat.toFixed(4)}°N, ${deviceGps.lng.toFixed(4)}°E`,
+          state: 'Live Device Position',
+          center: [deviceGps.lat, deviceGps.lng] as [number, number],
+          zoom: 16,
+          bounds: {
+            minLat: deviceGps.lat - 0.05,
+            maxLat: deviceGps.lat + 0.05,
+            minLng: deviceGps.lng - 0.05,
+            maxLng: deviceGps.lng + 0.05,
+          },
+          elevationRange: 'Active Device Alt',
+          grade: 'Terrain Ground Track',
+        }
+      : NMDC_MINES[activeMine as keyof typeof NMDC_MINES] || NMDC_MINES['14A'];
 
   // SVG viewBox adjusted for camera presets
   const getViewBox = () => {
@@ -389,7 +409,25 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
     if (!map) return;
 
     try {
-      const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
+      if (activeMine === 'DEVICE') {
+        if (deviceGps) {
+          map.flyTo([deviceGps.lat, deviceGps.lng], 16, { duration: 1.2 });
+        }
+        // Clear mine haul road polyline when viewing local device
+        if (haulRoadPolylineRef.current) {
+          haulRoadPolylineRef.current.setLatLngs([]);
+        }
+        // Hide mine-specific static markers in device mode
+        staticMarkersRef.current.forEach((m) => m.setOpacity(0));
+        checkpointMarkersRef.current.forEach((m) => m.setOpacity(0));
+        return;
+      }
+
+      // Restore mine markers and road when a mine sector is selected
+      staticMarkersRef.current.forEach((m) => m.setOpacity(1));
+      checkpointMarkersRef.current.forEach((m) => m.setOpacity(1));
+
+      const mine = NMDC_MINES[activeMine as keyof typeof NMDC_MINES] || NMDC_MINES['14A'];
       map.flyTo(mine.center, mine.zoom, { duration: 1.2 });
 
       // Update road line
@@ -425,7 +463,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
     } catch (err) {
       console.error('Safe map update notice:', err);
     }
-  }, [activeMine, displayMode]);
+  }, [activeMine, displayMode, deviceGps]);
 
   // Update vehicles on the Leaflet map ONLY when satellite mode is active
   useEffect(() => {
@@ -520,11 +558,15 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
     }
   }, [vehicles, activeConflict, onSelectVehicle, activeMine, displayMode]);
 
-  // Reset Leaflet to active mine center
+  // Reset Leaflet to active mine center or live device position
   const handleResetSatelliteView = () => {
     if (!mapInstanceRef.current) return;
     try {
-      const mine = NMDC_MINES[activeMine] || NMDC_MINES['14A'];
+      if (activeMine === 'DEVICE' && deviceGps) {
+        mapInstanceRef.current.setView([deviceGps.lat, deviceGps.lng], 16, { animate: true });
+        return;
+      }
+      const mine = NMDC_MINES[activeMine as keyof typeof NMDC_MINES] || NMDC_MINES['14A'];
       mapInstanceRef.current.setView(mine.center, mine.zoom, { animate: true });
     } catch (err) {
       console.error('Reset satellite view notice:', err);
@@ -716,10 +758,10 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                 className={`font-mono text-xs px-2 py-0.5 border font-bold ${
                   telemetry?.connected
                     ? 'bg-green-950 text-green-300 border-green-500 animate-pulse'
-                    : 'bg-blue-950 text-blue-300 border-blue-500'
+                    : 'bg-black text-slate-400 border-slate-700'
                 }`}
               >
-                {telemetry?.connected ? `${telemetry.connectionSource}` : 'SIMULATED FEED'}
+                {telemetry?.connected ? `${telemetry.connectionSource}` : 'SENSORS STANDBY (USB)'}
               </span>
             </div>
 
@@ -813,8 +855,17 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                 <div className="flex items-center gap-1.5">
                   <Navigation className="w-3.5 h-3.5 text-blue-400" />
                   <span className="text-slate-300">
-                    NEO-6M: <strong className="text-white">{telemetry?.neo6mGps.satellites ?? 9} Sats</strong> &bull;{' '}
-                    <strong className="text-yellow-300">{telemetry?.neo6mGps.speedKmh.toFixed(0) ?? 14} km/h</strong>
+                    NEO-6M:{' '}
+                    {telemetry?.connected && telemetry?.neo6mGps.fixQuality !== 'No Fix' ? (
+                      <>
+                        <strong className="text-white">{telemetry.neo6mGps.satellites} Sats</strong> &bull;{' '}
+                        <strong className="text-yellow-300">{telemetry.neo6mGps.speedKmh.toFixed(0)} km/h</strong>
+                      </>
+                    ) : deviceGps?.source === 'browser' ? (
+                      <span className="text-purple-300 font-semibold">Device GPS (±{deviceGps.accuracy.toFixed(0)}m)</span>
+                    ) : (
+                      <span className="text-slate-500 font-semibold">Sensor Standby</span>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -973,10 +1024,11 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               <div className="px-3 py-1.5 bg-[#09090b] border-b border-[#27272a] flex items-center justify-between gap-2 overflow-x-auto">
                 <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-slate-300">
                   <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span className="text-amber-400 uppercase tracking-wider hidden sm:inline">NMDC PROJECT:</span>
+                  <span className="text-amber-400 uppercase tracking-wider hidden sm:inline">SECTOR / UNIT:</span>
                 </div>
                 <div className="flex items-center gap-1">
                   {[
+                    { id: 'DEVICE', name: '📍 MY FIELD UNIT', tag: deviceGps ? 'LIVE' : 'GPS' },
                     { id: '14A', name: 'SECTOR 14-A', tag: 'CG' },
                     { id: '14C', name: 'BAILADILA 14C', tag: 'CG' },
                     { id: 'DEP5', name: 'DEPOSIT-5 BACHELI', tag: 'CG' },
@@ -985,16 +1037,25 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                     <button
                       key={mine.id}
                       type="button"
-                      onClick={() => setActiveMine(mine.id as any)}
+                      onClick={() => {
+                        setActiveMine(mine.id as any);
+                        if (mine.id === 'DEVICE' && deviceGps) {
+                          mapInstanceRef.current?.flyTo([deviceGps.lat, deviceGps.lng], 16, { duration: 1.0 });
+                        }
+                      }}
                       className={`px-2.5 py-1 text-[11px] font-mono font-bold border transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                         activeMine === mine.id
-                          ? 'bg-amber-600 text-white border-amber-400 shadow-sm'
+                          ? mine.id === 'DEVICE'
+                            ? 'bg-purple-700 text-white border-purple-400 shadow-sm'
+                            : 'bg-amber-600 text-white border-amber-400 shadow-sm'
                           : 'bg-[#141418] text-slate-300 border-[#2e2e36] hover:text-white hover:border-slate-500'
                       }`}
                     >
                       <span>{mine.name}</span>
                       <span className={`text-[9px] px-1 py-0.2 rounded-xs ${
-                        activeMine === mine.id ? 'bg-amber-800 text-white' : 'bg-black/60 text-slate-400'
+                        activeMine === mine.id
+                          ? 'bg-black/40 text-white font-bold'
+                          : 'bg-black/60 text-slate-400'
                       }`}>
                         {mine.tag}
                       </span>
@@ -1106,20 +1167,30 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                     <span>GOOGLE MAPS // {googleMapsType.toUpperCase()} // {currentMineInfo.name.toUpperCase()}</span>
                   </div>
                   <div className="text-slate-200 text-[10px]">
-                    LOC: {currentMineInfo.location}, {currentMineInfo.state} &bull; WGS84
+                    LOC: {currentMineInfo.location} &bull; {currentMineInfo.state} &bull; WGS84
                   </div>
                   <div className="text-amber-400 font-semibold text-[10px] flex items-center gap-1">
                     <span>GPS FIX:</span>
                     <span className="text-white font-mono">
-                      {telemetry?.neo6mGps ? `${telemetry.neo6mGps.latitude.toFixed(5)}°N, ${telemetry.neo6mGps.longitude.toFixed(5)}°E` : `${currentMineInfo.center[0].toFixed(3)}°N, ${currentMineInfo.center[1].toFixed(3)}°E`}
+                      {telemetry?.connected && telemetry?.neo6mGps?.fixQuality !== 'No Fix'
+                        ? `${telemetry.neo6mGps.latitude.toFixed(5)}°N, ${telemetry.neo6mGps.longitude.toFixed(5)}°E`
+                        : deviceGps
+                        ? `${deviceGps.lat.toFixed(5)}°N, ${deviceGps.lng.toFixed(5)}°E`
+                        : `${currentMineInfo.center[0].toFixed(3)}°N, ${currentMineInfo.center[1].toFixed(3)}°E`}
                     </span>
-                    <span className="text-cyan-300 ml-1">({telemetry?.neo6mGps.satellites ?? 9} Sats)</span>
+                    <span className="text-cyan-300 ml-1">
+                      ({telemetry?.connected && telemetry?.neo6mGps?.fixQuality !== 'No Fix'
+                        ? `${telemetry.neo6mGps.satellites} Sats`
+                        : deviceGps
+                        ? 'Live GPS'
+                        : 'Mine Center'})
+                    </span>
                   </div>
                   {/* Device GPS Status */}
                   <div className={`text-[10px] flex items-center gap-1.5 pt-0.5 border-t border-[#2a2a30] mt-0.5 ${deviceGps ? 'text-green-300' : geoError ? 'text-red-400' : 'text-slate-500'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${deviceGps ? 'bg-green-400 animate-ping' : geoError ? 'bg-red-400' : 'bg-slate-600'}`} />
                     {deviceGps
-                      ? <span><strong>MTC DEVICE:</strong> {deviceGps.lat.toFixed(5)}°N, {deviceGps.lng.toFixed(5)}°E &bull; ±{deviceGps.accuracy.toFixed(0)}m &bull; <span className={deviceGps.source === 'neo6m' ? 'text-cyan-300' : 'text-purple-300'}>{deviceGps.source === 'neo6m' ? 'NEO-6M' : 'Browser GPS'}</span></span>
+                      ? <span><strong>MTC DEVICE:</strong> {deviceGps.lat.toFixed(5)}°N, {deviceGps.lng.toFixed(5)}°E &bull; ±{deviceGps.accuracy.toFixed(0)}m &bull; <span className={deviceGps.source === 'neo6m' ? 'text-cyan-300' : 'text-purple-300'}>{deviceGps.source === 'neo6m' ? 'NEO-6M USB' : 'Browser GPS'}</span></span>
                       : geoError
                       ? <span>GPS: {geoError}</span>
                       : <span>Requesting GPS permission...</span>
@@ -1134,7 +1205,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                   className="absolute bottom-3 right-3 z-[400] bg-black/90 hover:bg-[#16161a] border border-[#44444c] text-white px-2.5 py-1.5 flex items-center gap-1.5 font-mono text-xs font-bold cursor-pointer transition-colors shadow-lg"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-blue-400" />
-                  <span>CENTER {activeMine}</span>
+                  <span>{activeMine === 'DEVICE' ? 'CENTER MY UNIT' : `CENTER ${activeMine}`}</span>
                 </button>
               </div>
 

@@ -101,9 +101,9 @@ export const Header: React.FC<HeaderProps> = ({
                   HARDWARE WS
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 bg-blue-950 text-blue-300 border border-blue-500 px-2 py-0.5 font-mono text-[11px] font-bold">
-                  <span className="w-2 h-2 rounded-full bg-blue-400" />
-                  SIM ENGINE
+                <span className="flex items-center gap-1.5 bg-cyan-950 text-cyan-300 border border-cyan-500 px-2 py-0.5 font-mono text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  LIVE FIELD MODE
                 </span>
               )}
             </div>
