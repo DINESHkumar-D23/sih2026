@@ -56,6 +56,13 @@ export function App() {
   // Real-Time Hardware Telemetry State (6 Sensors)
   const [hardwareTelemetry, setHardwareTelemetry] = useState<HardwareTelemetry>(INITIAL_HARDWARE_TELEMETRY);
 
+  // Live Device GPS — used as the geo-anchor for weather fetches
+  // Priority: NEO-6M USB sensor → Browser Geolocation API → hardcoded Bailadila fallback
+  const [deviceLocation, setDeviceLocation] = useState<{ lat: number; lng: number; source: 'neo6m' | 'browser' | 'fallback' }>({
+    lat: 18.67, lng: 81.25, source: 'fallback',
+  });
+  const deviceLocationRef = useRef({ lat: 18.67, lng: 81.25, source: 'fallback' as 'neo6m' | 'browser' | 'fallback' });
+
   const handleUpdateHardwareTelemetry = useCallback((data: Partial<HardwareTelemetry>) => {
     setHardwareTelemetry((prev) => {
       const next: HardwareTelemetry = {
@@ -119,13 +126,52 @@ export function App() {
     isFallback: true,
   });
 
-  // Fetch Live Real Weather using GPS Coordinates (Bailadila: 18.67, 81.25 or NEO-6M live fix)
+  // ── LIVE DEVICE GPS FOR WEATHER ──────────────────────────────────────────
+  // Keeps deviceLocationRef always current so fetchWeather (in useCallback)
+  // reads the latest position without needing it in its dependency array.
+  useEffect(() => {
+    // If NEO-6M is plugged in and has a fix, prefer it over browser GPS
+    if (
+      hardwareTelemetry.connected &&
+      hardwareTelemetry.neo6mGps?.latitude &&
+      hardwareTelemetry.neo6mGps?.longitude &&
+      hardwareTelemetry.neo6mGps?.fixQuality !== 'No Fix'
+    ) {
+      const loc = { lat: hardwareTelemetry.neo6mGps.latitude, lng: hardwareTelemetry.neo6mGps.longitude, source: 'neo6m' as const };
+      deviceLocationRef.current = loc;
+      setDeviceLocation(loc);
+      return;
+    }
+
+    // Browser Geolocation API fallback
+    if (!navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'browser' as const };
+        deviceLocationRef.current = loc;
+        setDeviceLocation(loc);
+      },
+      () => { /* keep existing location on error */ },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [
+    hardwareTelemetry.connected,
+    hardwareTelemetry.neo6mGps?.latitude,
+    hardwareTelemetry.neo6mGps?.longitude,
+    hardwareTelemetry.neo6mGps?.fixQuality,
+  ]);
+
+  // Fetch Live Real Weather using the current device location
   const fetchWeather = useCallback(async () => {
     try {
-      const gpsLat = hardwareTelemetry.neo6mGps?.latitude ? hardwareTelemetry.neo6mGps.latitude.toFixed(4) : '18.67';
-      const gpsLng = hardwareTelemetry.neo6mGps?.longitude ? hardwareTelemetry.neo6mGps.longitude.toFixed(4) : '81.25';
+      // Always read from the ref so we get the latest coords even in auto-sync intervals
+      const gpsLat = deviceLocationRef.current.lat.toFixed(5);
+      const gpsLng = deviceLocationRef.current.lng.toFixed(5);
       const res = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${gpsLat}&longitude=${gpsLng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility&hourly=temperature_2m,precipitation_probability,rain,wind_speed_10m&forecast_days=1&timezone=Asia%2FKolkata`
+        `https://api.open-meteo.com/v1/forecast?latitude=${gpsLat}&longitude=${gpsLng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility&hourly=temperature_2m,precipitation_probability,rain,wind_speed_10m&forecast_days=1&timezone=auto`
       );
       if (!res.ok) throw new Error('Weather fetch failed');
       const data = await res.json();
@@ -421,6 +467,7 @@ export function App() {
         weather={weather}
         onRefreshWeather={fetchWeather}
         telemetry={hardwareTelemetry}
+        deviceLocation={deviceLocation}
       />
 
       {/* Emergency Stop Protocol Confirmation Modal */}

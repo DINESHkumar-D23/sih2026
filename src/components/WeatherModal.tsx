@@ -25,6 +25,7 @@ interface WeatherModalProps {
   weather: WeatherData;
   onRefreshWeather: () => Promise<void>;
   telemetry?: HardwareTelemetry;
+  deviceLocation?: { lat: number; lng: number; source: 'neo6m' | 'browser' | 'fallback' };
 }
 
 export const WeatherModal: React.FC<WeatherModalProps> = ({
@@ -33,6 +34,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
   weather,
   onRefreshWeather,
   telemetry,
+  deviceLocation,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -76,8 +78,22 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
                   STN-BLD-14A
                 </span>
               </div>
-              <p className="font-mono text-xs text-slate-300 tracking-tight font-medium mt-0.5">
-                CREST RIDGE STATION (RL 1,240M) • LAT: 18.67°N, LON: 81.25°E • OPEN-METEO SYNC
+              <p className="font-mono text-xs text-slate-300 tracking-tight font-medium mt-0.5 flex items-center gap-2 flex-wrap">
+                <span>
+                  {deviceLocation && deviceLocation.source !== 'fallback'
+                    ? `LIVE LOCATION • LAT: ${deviceLocation.lat.toFixed(4)}°N, LON: ${deviceLocation.lng.toFixed(4)}°E`
+                    : 'CREST RIDGE STATION (RL 1,240M) • LAT: 18.67°N, LON: 81.25°E'}
+                </span>
+                <span className={`px-1.5 py-0.5 text-[10px] font-bold border ${
+                  deviceLocation?.source === 'neo6m'
+                    ? 'bg-cyan-950 text-cyan-300 border-cyan-600'
+                    : deviceLocation?.source === 'browser'
+                    ? 'bg-purple-950 text-purple-300 border-purple-600'
+                    : 'bg-slate-900 text-slate-400 border-slate-600'
+                }`}>
+                  {deviceLocation?.source === 'neo6m' ? '📡 NEO-6M SENSOR' : deviceLocation?.source === 'browser' ? '📍 DEVICE GPS' : '⚠ FALLBACK COORDS'}
+                </span>
+                <span className="text-slate-400">• OPEN-METEO SYNC</span>
               </p>
             </div>
           </div>
