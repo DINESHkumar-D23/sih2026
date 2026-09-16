@@ -14,6 +14,7 @@ import {
   ExternalLink,
   CalendarCheck,
   Cpu,
+  ChevronsLeft,
 } from 'lucide-react';
 import { NavScreen, UserRole, WeatherData, HardwareTelemetry } from '../types';
 
@@ -24,6 +25,8 @@ interface SidebarProps {
   onOpenBroadcast: () => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  isDesktopCollapsed?: boolean;
+  onToggleDesktopCollapse?: () => void;
   hazardCount?: number;
   userRole?: UserRole;
   isEmergencyActive?: boolean;
@@ -39,6 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenBroadcast,
   isOpenMobile,
   onCloseMobile,
+  isDesktopCollapsed = false,
+  onToggleDesktopCollapse,
   hazardCount = 0,
   userRole = 'dispatcher',
   isEmergencyActive = false,
@@ -87,7 +92,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         role="navigation"
         aria-label="Main application navigation"
         className={`fixed left-0 top-0 h-full w-64 bg-[#0F0F10] border-r border-[#262626] z-50 flex flex-col justify-between select-none transition-transform duration-200 ease-in-out ${
-          isOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          isOpenMobile
+            ? 'translate-x-0'
+            : isDesktopCollapsed
+            ? '-translate-x-full'
+            : '-translate-x-full lg:translate-x-0'
         }`}
       >
         <div className="flex flex-col">
@@ -107,13 +116,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={onCloseMobile}
-              className="lg:hidden p-1.5 text-slate-300 hover:text-white cursor-pointer"
-              aria-label="Close menu"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {onToggleDesktopCollapse && (
+                <button
+                  type="button"
+                  onClick={onToggleDesktopCollapse}
+                  className="hidden lg:flex p-1.5 text-slate-400 hover:text-white hover:bg-[#1A1A1D] border border-[#2a2a30] rounded-xs cursor-pointer transition-colors"
+                  aria-label="Collapse navigation sidebar"
+                  title="Collapse sidebar"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={onCloseMobile}
+                className="lg:hidden p-1.5 text-slate-300 hover:text-white cursor-pointer"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Role Status Tag */}

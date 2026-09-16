@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   VehicleTwin,
   TripLogEntry,
+  ConflictIncident,
   WeatherData,
   WeatherForecastHour,
   SystemSettings,
@@ -10,9 +11,19 @@ import {
   UserRole,
   HardwareTelemetry,
 } from './types';
-import { DEFAULT_SETTINGS } from './data/mockMineData';
+import {
+  DEFAULT_SETTINGS,
+  INITIAL_VEHICLES,
+  INITIAL_TRIP_LOGS,
+} from './data/mockMineData';
 import { INITIAL_HARDWARE_TELEMETRY } from './utils/hardwareReceiver';
 import { audioSynth } from './utils/audio';
+import {
+  INCLINE_TRACK,
+  samplePointAtDistance,
+  calculateStoppingDistance,
+  PASSING_BAY_ALPHA,
+} from './utils/kinematics';
 import {
   degToCompass,
   decodeWeatherCode,
@@ -32,6 +43,7 @@ import { TripLogsScreen } from './components/TripLogsScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 
 // Modals
+import { VehicleDetailModal } from './components/VehicleDetailModal';
 import { EmergencyStopModal } from './components/EmergencyStopModal';
 import { BroadcastModal } from './components/BroadcastModal';
 import { WeatherModal } from './components/WeatherModal';
@@ -40,14 +52,23 @@ export function App() {
   // Navigation & UI State
   const [currentScreen, setCurrentScreen] = useState<NavScreen>('traffic-radar');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isEstopModalOpen, setIsEstopModalOpen] = useState(false);
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState(false);
   const [radioNotice, setRadioNotice] = useState<RadioToast | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleTwin | null>(null);
 
-  // Core MTC State — vehicles and trip logs are empty until a real WebSocket backend connects
-  const [vehicles, setVehicles] = useState<VehicleTwin[]>([]);
-  const [tripLogs, setTripLogs] = useState<TripLogEntry[]>([]);
+  // Core MTC State
+  const [vehicles, setVehicles] = useState<VehicleTwin[]>(INITIAL_VEHICLES);
+  const [tripLogs, setTripLogs] = useState<TripLogEntry[]>(INITIAL_TRIP_LOGS);
+  const [totalHauledTons, setTotalHauledTons] = useState<number>(31200);
+  const [targetTons, setTargetTons] = useState<number>(40000);
+  const [highGradeTons, setHighGradeTons] = useState<number>(18450);
+  const [mediumGradeTons, setMediumGradeTons] = useState<number>(8250);
+  const [wasteTons, setWasteTons] = useState<number>(4500);
+  const [activeConflict, setActiveConflict] = useState<ConflictIncident | null>(null);
+  const conflictChimePlayedRef = useRef(false);
 
   const [isEmergencyActive, setIsEmergencyActive] = useState<boolean>(false);
   const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
@@ -293,7 +314,7 @@ export function App() {
         ws.onclose = () => {
           if (isMounted) {
             setWsStatus('FALLBACK_SIM');
-            setVehicles([]);
+            setVehicles(INITIAL_VEHICLES);
             retryTimer = setTimeout(connect, 10000);
           }
         };
@@ -310,6 +331,289 @@ export function App() {
       if (ws) ws.close();
     };
   }, [settings.wsEnabled, settings.wsUrl]);
+
+  // Kinematics & Collision Simulation Loop
+  useEffect(() => {
+    if (wsStatus === 'CONNECTED') return; // If hardware WS is providing telemetry, skip internal physics engine
+
+    const intervalMs = 100; // 10 ticks per second
+    const simInterval = setInterval(() => {
+      setVehicles((prevVehicles) => {
+        if (isEmergencyActive) {
+          // When E-Stop is active, freeze all velocities to 0 with engaged retarders
+          return prevVehicles.map((v) => ({
+            ...v,
+            speedKmh: 0,
+            retarderStatus: 'Engaged',
+          }));
+        }
+
+        const isWet = weather.surfaceCondition === 'Wet';
+        const friction = isWet ? 0.35 : 0.6;
+        const totalTrackLengthM = INCLINE_TRACK.totalLength; // 1420 meters
+
+        // 1. Advance position along spline
+        const updated = prevVehicles.map((v) => {
+          const vehicle = { ...v };
+
+          // Handle special loading/discharging states
+          if (vehicle.state === 'LOADING_AT_SHOVEL') {
+            vehicle.timerSeconds = (vehicle.timerSeconds || 0) + (intervalMs / 1000) * settings.simSpeedMultiplier;
+            vehicle.speedKmh = 0;
+            if (vehicle.timerSeconds > 10) {
+              vehicle.state = 'INCLINE_HAUL';
+              vehicle.payloadTons = vehicle.type === '240T' ? 210 : 85;
+              vehicle.material = 'High-Grade Fe';
+              vehicle.direction = 1; // Uphill towards crusher
+              vehicle.targetSpeedKmh = 14;
+              vehicle.timerSeconds = 0;
+            }
+            return vehicle;
+          }
+
+          if (vehicle.state === 'DISCHARGING_AT_CRUSHER') {
+            vehicle.timerSeconds = (vehicle.timerSeconds || 0) + (intervalMs / 1000) * settings.simSpeedMultiplier;
+            vehicle.speedKmh = 0;
+            if (vehicle.timerSeconds > 8) {
+              // Record completion in haul accounting
+              const haulPayload = vehicle.payloadTons;
+              setTotalHauledTons((prev) => prev + haulPayload);
+              if (vehicle.material.includes('High')) {
+                setHighGradeTons((prev) => prev + haulPayload);
+              } else if (vehicle.material.includes('Medium')) {
+                setMediumGradeTons((prev) => prev + haulPayload);
+              } else {
+                setWasteTons((prev) => prev + haulPayload);
+              }
+
+              // Add to trip logs
+              const newLogEntry: TripLogEntry = {
+                id: `LOG-${Math.floor(8820 + Math.random() * 900)}`,
+                dumperId: vehicle.id,
+                operator: vehicle.operator,
+                payloadTons: haulPayload,
+                material: vehicle.material,
+                fePercentage: vehicle.material.includes('High') ? 66.4 : 62.0,
+                sourceBench: 'Bench 07',
+                destination: 'Primary Crusher 1',
+                cycleTimeMins: parseFloat((20 + Math.random() * 4).toFixed(1)),
+                timestamp: new Date().toLocaleTimeString('en-GB', {
+                  timeZone: 'Asia/Kolkata',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }) + ' IST',
+              };
+              setTripLogs((prev) => [newLogEntry, ...prev.slice(0, 49)]);
+
+              vehicle.state = 'EMPTY';
+              vehicle.payloadTons = 0;
+              vehicle.material = 'Empty';
+              vehicle.direction = -1; // Downhill back to pit floor
+              vehicle.targetSpeedKmh = 22;
+              vehicle.timerSeconds = 0;
+            }
+            return vehicle;
+          }
+
+          if (vehicle.state === 'HELD_BY_MTC') {
+            // Held by dispatcher inside Passing Bay Alpha
+            vehicle.speedKmh = 0;
+            vehicle.x = PASSING_BAY_ALPHA.x;
+            vehicle.y = PASSING_BAY_ALPHA.y;
+            return vehicle;
+          }
+
+          // Normal Incline Haul / Descent Motion
+          const speedClamp = Math.min(vehicle.targetSpeedKmh, settings.speedClampLimitKmh);
+          vehicle.speedKmh = speedClamp;
+          const deltaDistanceM = (vehicle.speedKmh / 3.6) * (intervalMs / 1000) * settings.simSpeedMultiplier;
+          const deltaProgress = (deltaDistanceM / totalTrackLengthM) * vehicle.direction;
+          const newProgress = vehicle.pathProgress + deltaProgress;
+
+          // Check End-of-Run Transitions:
+          // Reached Primary Crusher (progress >= 0.97)
+          if (vehicle.direction === 1 && newProgress >= 0.97) {
+            vehicle.pathProgress = 0.98;
+            vehicle.state = 'DISCHARGING_AT_CRUSHER';
+            vehicle.speedKmh = 0;
+            vehicle.timerSeconds = 0;
+            return vehicle;
+          }
+
+          // Reached Pit Floor Shovel (progress <= 0.03)
+          if (vehicle.direction === -1 && newProgress <= 0.03) {
+            vehicle.pathProgress = 0.02;
+            vehicle.state = 'LOADING_AT_SHOVEL';
+            vehicle.speedKmh = 0;
+            vehicle.timerSeconds = 0;
+            return vehicle;
+          }
+
+          vehicle.pathProgress = Math.max(0.01, Math.min(0.99, newProgress));
+
+          // Project coordinates along spline
+          const sample = samplePointAtDistance(vehicle.pathProgress * totalTrackLengthM);
+          vehicle.x = sample.x;
+          vehicle.y = sample.y;
+          vehicle.headingDeg = vehicle.direction === 1 ? sample.headingDeg : (sample.headingDeg + 180) % 360;
+
+          // Dynamic Stopping Distance Calculation
+          vehicle.dStopMeters = calculateStoppingDistance(
+            vehicle.speedKmh,
+            vehicle.direction,
+            friction
+          );
+
+          // Retarder status: engaged on downhill runs
+          vehicle.retarderStatus = vehicle.direction === -1 ? 'Engaged' : 'Nominal';
+
+          return vehicle;
+        });
+
+        // 2. Collision Detection & Hazard Envelope Interlock
+        let detectedConflict: ConflictIncident | null = null;
+        let conflictPair: [string, string] | null = null;
+
+        for (let i = 0; i < updated.length; i++) {
+          for (let j = i + 1; j < updated.length; j++) {
+            const vA = updated[i];
+            const vB = updated[j];
+
+            // Only check moving vehicles on the main haul ramp in opposing directions
+            const bothMoving =
+              (vA.state === 'INCLINE_HAUL' || vA.state === 'EMPTY') &&
+              (vB.state === 'INCLINE_HAUL' || vB.state === 'EMPTY');
+            const opposing = vA.direction !== vB.direction;
+
+            if (bothMoving && opposing && !vA.inPassingBay && !vB.inPassingBay) {
+              const distanceM = Math.abs(vA.pathProgress - vB.pathProgress) * totalTrackLengthM;
+              const combinedStopM = vA.dStopMeters + vB.dStopMeters;
+
+              // Collision proximity threshold: stopping distance buffer + 30m safety margin
+              if (distanceM <= combinedStopM + 30) {
+                conflictPair = [vA.id, vB.id];
+                const downhillUnit = vA.direction === -1 ? vA : vB;
+                const uphillUnit = vA.direction === 1 ? vA : vB;
+
+                detectedConflict = {
+                  id: `CONF-${Date.now()}`,
+                  vehicleAId: uphillUnit.id,
+                  vehicleBId: downhillUnit.id,
+                  closingDistanceM: Math.round(distanceM),
+                  combinedClosingSpeedKmh: uphillUnit.speedKmh + downhillUnit.speedKmh,
+                  locationName: 'Hairpin 3 Switchback (RL 1,180m)',
+                  mustHoldId: downhillUnit.id,
+                  active: true,
+                  recommendedAction: `Direct ${downhillUnit.id} to hold in Passing Bay Alpha. Uphill loaded ${uphillUnit.id} holds right-of-way.`,
+                };
+              }
+            }
+          }
+        }
+
+        // 3. Update Conflict & Hazard Flags
+        setActiveConflict(detectedConflict);
+
+        if (detectedConflict && !conflictChimePlayedRef.current) {
+          audioSynth.playCollisionWarning(settings.isAudioMuted);
+          conflictChimePlayedRef.current = true;
+
+          // Auto-E-Stop if enabled in settings
+          if (settings.autoEstopOnHazard) {
+            setIsEmergencyActive(true);
+            audioSynth.playEmergencyKlaxon(settings.isAudioMuted);
+          }
+        } else if (!detectedConflict) {
+          conflictChimePlayedRef.current = false;
+        }
+
+        // Apply hazard flags to each vehicle
+        return updated.map((v) => {
+          if (conflictPair && (v.id === conflictPair[0] || v.id === conflictPair[1])) {
+            return {
+              ...v,
+              hazardEnvelope: true,
+              mustHoldByMTC: v.id === detectedConflict?.mustHoldId,
+            };
+          } else {
+            return {
+              ...v,
+              hazardEnvelope: false,
+              mustHoldByMTC: false,
+            };
+          }
+        });
+      });
+    }, intervalMs);
+
+    return () => clearInterval(simInterval);
+  }, [
+    wsStatus,
+    isEmergencyActive,
+    weather.surfaceCondition,
+    settings.simSpeedMultiplier,
+    settings.speedClampLimitKmh,
+    settings.autoEstopOnHazard,
+    settings.isAudioMuted,
+  ]);
+
+  // MTC Command: Hold Vehicle in Passing Bay Alpha
+  const handleHoldVehicle = (vehicleId: string) => {
+    audioSynth.playRadioClick(settings.isAudioMuted);
+    setVehicles((prev) =>
+      prev.map((v) => {
+        if (v.id === vehicleId) {
+          return {
+            ...v,
+            state: 'HELD_BY_MTC',
+            inPassingBay: true,
+            hazardEnvelope: false,
+            mustHoldByMTC: false,
+            speedKmh: 0,
+            x: PASSING_BAY_ALPHA.x,
+            y: PASSING_BAY_ALPHA.y,
+          };
+        }
+        return {
+          ...v,
+          hazardEnvelope: false,
+          mustHoldByMTC: false,
+        };
+      })
+    );
+    setActiveConflict(null);
+    setRadioNotice({
+      id: `TOAST-${Date.now()}-1`,
+      channel: 'VHF CH 04',
+      message: `MTC ORDER: UNIT ${vehicleId} DOCKED IN PASSING BAY 07-B. MAIN INCLINE CLEAR.`,
+    });
+  };
+
+  // MTC Command: Clear Vehicle to Proceed
+  const handleClearVehicle = (vehicleId: string) => {
+    audioSynth.playRadioClick(settings.isAudioMuted);
+    setVehicles((prev) =>
+      prev.map((v) => {
+        if (v.id === vehicleId) {
+          const sample = samplePointAtDistance(v.pathProgress * INCLINE_TRACK.totalLength);
+          return {
+            ...v,
+            state: v.payloadTons > 0 ? 'INCLINE_HAUL' : 'EMPTY',
+            inPassingBay: false,
+            speedKmh: v.targetSpeedKmh,
+            x: sample.x,
+            y: sample.y,
+          };
+        }
+        return v;
+      })
+    );
+    setRadioNotice({
+      id: `TOAST-${Date.now()}-2`,
+      channel: 'VHF CH 04',
+      message: `MTC CLEARANCE: UNIT ${vehicleId} AUTHORIZED FOR MAIN INCLINE TRANSIT.`,
+    });
+  };
 
   // Radio Toast Timeout
   useEffect(() => {
@@ -379,7 +683,9 @@ export function App() {
         onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        hazardCount={0}
+        isDesktopCollapsed={isDesktopSidebarCollapsed}
+        onToggleDesktopCollapse={() => setIsDesktopSidebarCollapsed((prev) => !prev)}
+        hazardCount={activeConflict?.active ? 1 : 0}
         userRole={settings.role}
         isEmergencyActive={isEmergencyActive}
         weather={weather}
@@ -388,10 +694,17 @@ export function App() {
       />
 
       {/* 2. Main Viewport Canvas */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-64 overflow-y-auto">
+      <div className={`flex-1 flex flex-col min-w-0 ${isDesktopSidebarCollapsed ? 'lg:pl-0' : 'lg:pl-64'} overflow-y-auto transition-all duration-200`}>
         {/* Top Header Bar */}
         <Header
-          onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
+          onToggleSidebar={() => {
+            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+              setIsMobileSidebarOpen((prev) => !prev);
+            } else {
+              setIsDesktopSidebarCollapsed((prev) => !prev);
+            }
+          }}
+          isDesktopSidebarCollapsed={isDesktopSidebarCollapsed}
           wsStatus={wsStatus}
           fogVisibilityMeters={weather.visibilityMeters}
           isAudioMuted={settings.isAudioMuted}
@@ -421,13 +734,13 @@ export function App() {
             {currentScreen === 'traffic-radar' && (
               <RadarScreen
                 vehicles={vehicles}
-                activeConflict={null}
-                onSelectVehicle={() => {}}
-                onHoldVehicle={() => {}}
-                onClearVehicle={() => {}}
+                activeConflict={activeConflict}
+                onSelectVehicle={(v) => setSelectedVehicle(v)}
+                onHoldVehicle={handleHoldVehicle}
+                onClearVehicle={handleClearVehicle}
                 onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
-                totalHauledTons={0}
-                targetTons={0}
+                totalHauledTons={totalHauledTons}
+                targetTons={targetTons}
                 radioNotice={radioNotice}
                 userRole={settings.role}
                 weather={weather}
@@ -460,6 +773,15 @@ export function App() {
       </div>
 
       {/* 3. System Modals */}
+      {/* Vehicle Telemetry & Dispatch Control Modal */}
+      <VehicleDetailModal
+        vehicle={selectedVehicle}
+        onClose={() => setSelectedVehicle(null)}
+        onHold={handleHoldVehicle}
+        onClear={handleClearVehicle}
+        userRole={settings.role}
+      />
+
       {/* Pit Meteorology & Hydrology Telemetry Modal */}
       <WeatherModal
         isOpen={isWeatherModalOpen}

@@ -17,6 +17,7 @@ import { UserRole } from '../types';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
+  isDesktopSidebarCollapsed?: boolean;
   wsStatus: 'CONNECTED' | 'FALLBACK_SIM';
   fogVisibilityMeters: number;
   isAudioMuted: boolean;
@@ -29,6 +30,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
+  isDesktopSidebarCollapsed = false,
   wsStatus,
   fogVisibilityMeters,
   isAudioMuted,
@@ -75,17 +77,19 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       role="banner"
-      className="fixed top-0 left-0 lg:left-64 right-0 h-14 bg-[#0F0F10] border-b border-[#262626] z-40 flex items-center justify-between px-3 md:px-4 select-none"
+      className={`fixed top-0 left-0 ${isDesktopSidebarCollapsed ? 'lg:left-0' : 'lg:left-64'} right-0 h-14 bg-[#0F0F10] border-b border-[#262626] z-40 flex items-center justify-between px-3 md:px-4 select-none transition-all duration-200`}
     >
       {/* Left: Branding & Pit shift status */}
       <div className="flex items-center gap-2 md:gap-3">
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="lg:hidden p-1.5 text-[#E0E0E0] hover:bg-[#1A1A1D] border border-[#262626] rounded-xs cursor-pointer"
+            className={`${isDesktopSidebarCollapsed ? 'flex' : 'lg:hidden flex'} p-1.5 text-[#E0E0E0] hover:bg-[#1A1A1D] border border-[#262626] rounded-xs cursor-pointer items-center gap-1.5 transition-colors`}
             aria-label="Toggle navigation sidebar"
+            title="Toggle Navigation Menu"
           >
             <Menu className="w-4 h-4" />
+            {isDesktopSidebarCollapsed && <span className="font-mono text-[11px] font-bold text-cyan-300 hidden md:inline">MENU</span>}
           </button>
         )}
 

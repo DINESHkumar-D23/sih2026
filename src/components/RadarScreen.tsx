@@ -23,6 +23,9 @@ import {
   Milestone,
   CheckCircle2,
   ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   Cpu,
   Wind,
   Thermometer,
@@ -89,6 +92,26 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   const [showBrakingRings, setShowBrakingRings] = useState(true);
   const [showWeatherFx, setShowWeatherFx] = useState(true);
   const [showHeadlights, setShowHeadlights] = useState(true);
+
+  // Collapsible Dual-Side Panels State ("Two Tabs on Each Side")
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [leftTab, setLeftTab] = useState<'hardware' | 'interlock' | 'all'>('hardware');
+  const [rightTab, setRightTab] = useState<'roster' | 'checkpoints' | 'all'>('roster');
+
+  // Trigger Leaflet map resize when panels collapse or expand
+  useEffect(() => {
+    const t1 = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+    }, 120);
+    const t2 = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+    }, 350);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isLeftCollapsed, isRightCollapsed]);
 
   // Leaflet references
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -741,12 +764,88 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         </div>
       )}
 
-      {/* Primary 3-Column Docked Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 w-full">
-        {/* ==================== LEFT COLUMN (col-span-3) ==================== */}
-        <div className="lg:col-span-3 flex flex-col gap-2.5">
-          {/* CARD 1: REAL-TIME HARDWARE SENSOR TELEMETRY */}
-          <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
+      {/* Primary Docked / Collapsible Workspace Layout with Full Map Behind */}
+      <div className="flex flex-col lg:flex-row gap-2.5 w-full items-stretch relative">
+        {/* ==================== LEFT COLLAPSED HANDLE ==================== */}
+        {isLeftCollapsed && (
+          <div className="shrink-0 flex lg:flex-col items-center">
+            <button
+              type="button"
+              onClick={() => setIsLeftCollapsed(false)}
+              className="hidden lg:flex items-center gap-2 py-4 px-2 bg-[#0A0A0D] hover:bg-[#14141c] border border-[#333338] hover:border-cyan-400 text-cyan-300 font-mono text-xs font-bold [writing-mode:vertical-lr] rotate-180 cursor-pointer shadow-lg rounded-r transition-all"
+              title="Expand Left Sensors & Safety Panel"
+            >
+              <ChevronsRight className="w-3.5 h-3.5 rotate-90 text-cyan-400" />
+              <span>SENSORS &amp; SAFETY</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsLeftCollapsed(false)}
+              className="lg:hidden w-full py-2 px-3 bg-[#0A0A0D] border border-[#333338] text-cyan-300 font-mono text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <ChevronsRight className="w-3.5 h-3.5 text-cyan-400" />
+              <span>SHOW SENSORS &amp; SAFETY PANEL</span>
+            </button>
+          </div>
+        )}
+
+        {/* ==================== LEFT EXPANDED PANEL ==================== */}
+        {!isLeftCollapsed && (
+          <div className="w-full lg:w-[320px] xl:w-[340px] shrink-0 flex flex-col gap-2 transition-all">
+            {/* Tab Bar Header with Collapse Button */}
+            <div className="bg-[#0A0A0B] border border-[#333338] p-1.5 flex items-center justify-between font-mono text-xs">
+              <div className="flex items-center gap-1 flex-1 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setLeftTab('hardware')}
+                  className={`px-2 py-1 text-[10.5px] font-bold border transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                    leftTab === 'hardware'
+                      ? 'bg-cyan-950 text-cyan-300 border-cyan-500 shadow-xs'
+                      : 'bg-black text-slate-400 border-[#2a2a30] hover:text-white'
+                  }`}
+                >
+                  <Cpu className="w-3 h-3 text-cyan-400" />
+                  <span>SENSORS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeftTab('interlock')}
+                  className={`px-2 py-1 text-[10.5px] font-bold border transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                    leftTab === 'interlock'
+                      ? 'bg-red-950 text-red-300 border-red-500 shadow-xs'
+                      : 'bg-black text-slate-400 border-[#2a2a30] hover:text-white'
+                  }`}
+                >
+                  <Shield className="w-3 h-3 text-red-400" />
+                  <span>SAFETY &amp; LAYERS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeftTab('all')}
+                  className={`px-1.5 py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                    leftTab === 'all'
+                      ? 'bg-slate-700 text-white border-slate-400'
+                      : 'bg-black text-slate-500 border-[#2a2a30] hover:text-white'
+                  }`}
+                  title="Show both sensors and safety layers stacked"
+                >
+                  ALL
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsLeftCollapsed(true)}
+                className="p-1 text-slate-400 hover:text-white hover:bg-[#1b1b22] border border-[#333338] ml-1 cursor-pointer transition-colors"
+                title="Collapse Left Panel"
+              >
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* CARD 1: REAL-TIME HARDWARE SENSOR TELEMETRY */}
+            {(leftTab === 'hardware' || leftTab === 'all') && (
+              <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
             <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Cpu className="w-4 h-4 text-cyan-400" />
@@ -881,9 +980,12 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               </div>
             </div>
           </div>
+        )}
 
-          {/* CARD 2: ACTIVE COLLISION & MTC INTERLOCK */}
-          <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
+        {/* CARD 2: ACTIVE COLLISION & MTC INTERLOCK and CARD 3: CAMERA & LAYER CONTROLS */}
+        {(leftTab === 'interlock' || leftTab === 'all') && (
+          <>
+            <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
             <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-red-400" />
@@ -1012,11 +1114,14 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               </label>
             </div>
           </div>
-        </div>
+        </>
+      )}
+    </div>
+  )}
 
-        {/* ==================== CENTER COLUMN (col-span-9) ==================== */}
-        <div className="lg:col-span-9 flex flex-col gap-2">
-          {/* DISPLAY CANVAS CONTAINER */}
+  {/* ==================== CENTER COLUMN (Expanding Map) ==================== */}
+  <div className="flex-1 min-w-0 flex flex-col gap-2 transition-all">
+    {/* DISPLAY CANVAS CONTAINER */}
           <div className="bg-[#050507] border border-[#333338] relative overflow-hidden flex flex-col">
             {/* Mine Site Selector Bar & Canvas Header */}
             <div className="bg-[#0F0F10] border-b border-[#333338] flex flex-col">
@@ -1701,18 +1806,94 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           </div>
         </div>
 
-        {/* ==================== RIGHT COLUMN (col-span-3) ==================== */}
-        <div className="lg:col-span-3 flex flex-col gap-2.5">
-          {/* VEHICLE ROSTER CARD */}
-          <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
-            <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-blue-400" />
-                <span className="font-mono font-bold text-xs text-blue-300 uppercase tracking-wider">
-                  Live Fleet Roster ({vehicles.length})
-                </span>
+        {/* ==================== RIGHT COLLAPSED HANDLE ==================== */}
+        {isRightCollapsed && (
+          <div className="shrink-0 flex lg:flex-col items-center">
+            <button
+              type="button"
+              onClick={() => setIsRightCollapsed(false)}
+              className="hidden lg:flex items-center gap-2 py-4 px-2 bg-[#0A0A0D] hover:bg-[#14141c] border border-[#333338] hover:border-blue-400 text-blue-300 font-mono text-xs font-bold [writing-mode:vertical-lr] cursor-pointer shadow-lg rounded-l transition-all"
+              title="Expand Right Fleet & Checkpoints Panel"
+            >
+              <ChevronsLeft className="w-3.5 h-3.5 rotate-90 text-blue-400" />
+              <span>FLEET &amp; AUDIT ({vehicles.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsRightCollapsed(false)}
+              className="lg:hidden w-full py-2 px-3 bg-[#0A0A0D] border border-[#333338] text-blue-300 font-mono text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <ChevronsLeft className="w-3.5 h-3.5" />
+              <span>SHOW FLEET &amp; AUDIT PANEL ({vehicles.length})</span>
+            </button>
+          </div>
+        )}
+
+        {/* ==================== RIGHT EXPANDED PANEL ==================== */}
+        {!isRightCollapsed && (
+          <div className="w-full lg:w-[330px] xl:w-[350px] shrink-0 flex flex-col gap-2 transition-all">
+            {/* Tab Bar Header with Collapse Button */}
+            <div className="bg-[#0A0A0B] border border-[#333338] p-1.5 flex items-center justify-between font-mono text-xs">
+              <button
+                type="button"
+                onClick={() => setIsRightCollapsed(true)}
+                className="p-1 text-slate-400 hover:text-white hover:bg-[#1b1b22] border border-[#333338] mr-1 cursor-pointer transition-colors"
+                title="Collapse Right Panel"
+              >
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="flex items-center gap-1 flex-1 overflow-x-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setRightTab('roster')}
+                  className={`px-2 py-1 text-[10.5px] font-bold border transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                    rightTab === 'roster'
+                      ? 'bg-blue-950 text-blue-300 border-blue-500 shadow-xs'
+                      : 'bg-black text-slate-400 border-[#2a2a30] hover:text-white'
+                  }`}
+                >
+                  <Truck className="w-3 h-3 text-blue-400" />
+                  <span>FLEET ({vehicles.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab('checkpoints')}
+                  className={`px-2 py-1 text-[10.5px] font-bold border transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                    rightTab === 'checkpoints'
+                      ? 'bg-cyan-950 text-cyan-300 border-cyan-500 shadow-xs'
+                      : 'bg-black text-slate-400 border-[#2a2a30] hover:text-white'
+                  }`}
+                >
+                  <Milestone className="w-3 h-3 text-cyan-400" />
+                  <span>CHECKPOINTS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab('all')}
+                  className={`px-1.5 py-1 text-[10px] font-bold border transition-colors cursor-pointer ${
+                    rightTab === 'all'
+                      ? 'bg-slate-700 text-white border-slate-400'
+                      : 'bg-black text-slate-500 border-[#2a2a30] hover:text-white'
+                  }`}
+                  title="Show both live fleet and route checkpoints"
+                >
+                  ALL
+                </button>
               </div>
             </div>
+
+            {/* Content: CARD (Live Fleet Roster) */}
+            {(rightTab === 'roster' || rightTab === 'all') && (
+              <div className="bg-[#0A0A0B] border border-[#333338] flex flex-col overflow-hidden">
+                <div className="px-3.5 py-2.5 bg-[#0F0F10] border-b border-[#333338] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-blue-400" />
+                    <span className="font-mono font-bold text-xs text-blue-300 uppercase tracking-wider">
+                      Live Fleet Roster ({vehicles.length})
+                    </span>
+                  </div>
+                </div>
 
             {/* Filter Tabs */}
             <div className="p-2 bg-black border-b border-[#2a2a30] flex items-center gap-1.5 flex-wrap font-mono text-xs">
@@ -1808,8 +1989,82 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               })}
             </div>
           </div>
+        )}
+
+          {/* Content: CARD (Route Checkpoint Passing & Berm Speed Audit) */}
+          {(rightTab === 'checkpoints' || rightTab === 'all') && (
+            <div className="bg-[#0A0A0B] border border-[#333338] p-3 flex flex-col gap-2 font-mono text-xs overflow-y-auto max-h-[500px]">
+              <div className="flex items-center justify-between border-b border-[#26262b] pb-2">
+                <div className="flex items-center gap-2">
+                  <Flag className="w-4 h-4 text-cyan-400" />
+                  <span className="font-bold text-white uppercase tracking-wider text-[11px]">
+                    ROUTE CHECKPOINTS (CP-01 to 06)
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400">PASS AUDIT</span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                {checkpointPassageData.map((cp) => {
+                  const isCrossedAny = cp.crossedCount > 0;
+                  return (
+                    <div
+                      key={cp.id}
+                      className={`p-2 border flex flex-col gap-1 rounded-xs transition-all ${
+                        isCrossedAny
+                          ? 'bg-[#0e1726]/80 border-cyan-500/60 shadow-xs'
+                          : 'bg-[#111114] border-[#27272f]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-cyan-300 text-[11px] flex items-center gap-1">
+                          <span>{cp.code}</span>
+                          <span className="text-slate-400 text-[10px]">({cp.shortName})</span>
+                        </span>
+                        <span
+                          className={`text-[9px] px-1 py-0.2 font-bold rounded-xs ${
+                            isCrossedAny ? 'bg-cyan-900 text-cyan-200 border border-cyan-600' : 'bg-black/60 text-slate-400'
+                          }`}
+                        >
+                          {cp.crossedCount} PASSED
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[9px] text-slate-400">
+                        <span>RL {cp.elevationRL}m</span>
+                        <span className="text-yellow-400 font-semibold">{cp.speedLimitKmh} km/h cap</span>
+                      </div>
+
+                      {/* Dumpers that crossed this checkpoint */}
+                      <div className="mt-1 pt-1 border-t border-[#1f2937] flex flex-wrap gap-1 min-h-[22px] items-center">
+                        {cp.crossedVehicles.length > 0 ? (
+                          cp.crossedVehicles.slice(0, 4).map((v) => (
+                            <span
+                              key={v.id}
+                              onClick={() => onSelectVehicle(v)}
+                              className={`text-[9px] font-bold px-1 py-0.2 rounded-xs border cursor-pointer hover:scale-105 transition-transform ${
+                                v.direction === 1
+                                  ? 'bg-blue-950 text-blue-200 border-blue-600'
+                                  : 'bg-green-950 text-green-200 border-green-600'
+                              }`}
+                              title={`Inspect ${v.id} (${v.direction === 1 ? 'Uphill Loaded' : 'Downhill Empty'}, ${v.speedKmh.toFixed(0)} km/h)`}
+                            >
+                              {v.id} {v.direction === 1 ? '↑' : '↓'}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[9px] text-slate-500 italic">No units passed yet</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
-  );
+  </div>
+);
 };
