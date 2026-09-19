@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         role="navigation"
         aria-label="Main application navigation"
-        className={`fixed left-0 top-0 h-full w-64 bg-[#0F0F10] border-r border-[#262626] z-50 flex flex-col justify-between select-none transition-transform duration-200 ease-in-out ${
+        className={`fixed inset-y-0 left-0 h-screen w-64 bg-[#0F0F10] border-r border-[#262626] z-50 flex flex-col justify-between select-none transition-transform duration-200 ease-in-out overflow-y-auto ${
           isOpenMobile
             ? 'translate-x-0'
             : isDesktopCollapsed

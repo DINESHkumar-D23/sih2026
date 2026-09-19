@@ -1539,7 +1539,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
             </div>
 
             {/* Viewport Area */}
-            <div className="relative isolate z-0 w-full h-[75vh] min-h-[520px] bg-[#050507] overflow-hidden">
+            <div className="relative isolate z-0 w-full h-[50vh] sm:h-[54vh] lg:h-[calc(100vh-390px)] min-h-[380px] max-h-[580px] bg-[#050507] overflow-hidden">
               {/* ========================================================================= */}
               {/* GOOGLE MAPS HYBRID SATELLITE VIEW (LEAFLET + GOOGLE MAPS) */}
               {/* ========================================================================= */}
@@ -2430,6 +2430,34 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           )}
         </div>
       )}
+    </div>
+
+    {/* ==================== MTC CONSOLE TACTICAL FOOTER ==================== */}
+    <div className="mt-2 bg-[#09090C] border border-[#26262E] px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-300">
+      <div className="flex items-center gap-2.5">
+        <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span>MTC PIT DISPATCH ACTIVE</span>
+        </span>
+        <span className="text-[#3a3a44] hidden sm:inline">|</span>
+        <span className="text-slate-400 hidden sm:inline">
+          BAILADILA SECTOR 14-A &bull; RL 1,040M TO 1,280M &bull; 11% GRADIENT RAMP
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 text-[10.5px]">
+        <span className="text-slate-400">
+          FLEET: <strong className="text-white font-bold">{vehicles.length} UNITS</strong>
+        </span>
+        <span className="text-[#3a3a44]">•</span>
+        <span className="text-slate-400">
+          SAFETY: <strong className="text-emerald-400 font-bold">DGMS CODE V4.2 PASS</strong>
+        </span>
+        <span className="text-[#3a3a44]">•</span>
+        <span className="text-slate-400">
+          ENCRYPTION: <strong className="text-cyan-300 font-bold">AES-256 GCM</strong>
+        </span>
+      </div>
     </div>
   </div>
 );
