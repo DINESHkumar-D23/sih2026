@@ -12,6 +12,7 @@ import {
   AlertOctagon,
   UserCheck,
   Eye,
+  Wifi,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -26,6 +27,8 @@ interface HeaderProps {
   onToggleRole: () => void;
   onOpenEmergencyModal: () => void;
   isEmergencyActive: boolean;
+  onOpenEsp32WifiModal?: () => void;
+  esp32WifiConnected?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,6 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleRole,
   onOpenEmergencyModal,
   isEmergencyActive,
+  onOpenEsp32WifiModal,
+  esp32WifiConnected = false,
 }) => {
   const [time, setTime] = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -133,6 +138,24 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls: Role, Audio, Fullscreen, E-Stop, Clocks */}
       <div className="flex items-center gap-2 md:gap-3">
+        {/* ESP32 Wi-Fi Station Button */}
+        {onOpenEsp32WifiModal && (
+          <button
+            type="button"
+            onClick={onOpenEsp32WifiModal}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 border font-mono text-[11px] font-bold cursor-pointer transition-colors ${
+              esp32WifiConnected
+                ? 'bg-cyan-950/80 border-cyan-400 text-cyan-300 hover:bg-cyan-900'
+                : 'bg-[#181a20] border-[#333a48] text-slate-300 hover:text-white'
+            }`}
+            title="Configure ESP32 Wi-Fi Node (Smoke, DHT, Distance)"
+          >
+            <Wifi className={`w-3.5 h-3.5 ${esp32WifiConnected ? 'text-cyan-400 animate-pulse' : 'text-slate-400'}`} />
+            <span className="hidden sm:inline">ESP32 WI-FI</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${esp32WifiConnected ? 'bg-cyan-400 animate-ping' : 'bg-slate-500'}`} />
+          </button>
+        )}
+
         {/* Role Switcher */}
         <button
           onClick={onToggleRole}

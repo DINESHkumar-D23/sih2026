@@ -159,10 +159,43 @@ export interface ChokePointQueue {
   avgWaitMins: number;
 }
 
+export interface Esp32WifiTelemetry {
+  connected: boolean;
+  ipAddress: string;
+  mode: 'HTTP_POLL' | 'WEBSOCKET';
+  pollIntervalMs: number;
+  rssiDbm?: number;
+  ssid?: string;
+  lastPingMs?: number;
+  packetsCount: number;
+  lastSeen?: string;
+  errorMessage?: string;
+  // Core Requested Sensors:
+  smoke: {
+    adc: number;
+    ppm: number;
+    smokeDetected: boolean;
+    status: 'Clean' | 'Moderate' | 'Poor' | 'Hazardous';
+  };
+  dht: {
+    temperatureC: number;
+    humidityPercent: number;
+    heatIndexC: number;
+    dewPointC: number;
+  };
+  distance: {
+    distanceMeters: number;
+    distanceCm: number;
+    alert: 'CLEAR' | 'PROXIMITY_WARNING' | 'COLLISION_CRITICAL';
+  };
+  rawPayload?: string;
+}
+
 export interface HardwareTelemetry {
-  // 1. MQ 135 - Air Quality Sensor
+  // 1. MQ-135 - Air Quality Sensor Module
   mq135: {
     ppm: number;
+    rawAdc?: number;
     airQualityStatus: 'Clean' | 'Moderate' | 'Poor' | 'Hazardous';
     smokeDetected: boolean;
     co2EstimatedPpm: number;
@@ -218,8 +251,25 @@ export interface HardwareTelemetry {
     triggerReason: string;
     lastTriggeredTime?: string;
   };
+  // 7. Stationary Checkpoint IoT Node (ESP32 + NRF24L01)
+  checkpointStation?: {
+    checkpointId: number;
+    checkpointCode: string;
+    checkpointName: string;
+    temperatureC: number;
+    humidityPercent: number;
+    mq135Adc: number;
+    mq135Ppm: number;
+    airQualityStatus: 'Clean' | 'Moderate' | 'Poor' | 'Hazardous';
+    nrfStatus: 'DATA SENT' | 'SEND FAILED' | 'IDLE';
+    nrfAddress: string;
+    lastReceived: string;
+  };
+  // 8. Dedicated ESP32 Wi-Fi Node (Smoke, DHT, Distance)
+  esp32Wifi?: Esp32WifiTelemetry;
+  rawSerialLogs?: string[];
   // Hardware Ingestion Metadata
-  connectionSource: 'WEB_SERIAL_USB' | 'WEBSOCKET' | 'SIMULATOR';
+  connectionSource: 'WEB_SERIAL_USB' | 'WEBSOCKET' | 'ESP32_WIFI' | 'SIMULATOR';
   connected: boolean;
   serialPortName?: string;
   baudRate: number;
@@ -247,6 +297,11 @@ export interface SystemSettings {
   lidarCriticalThresholdM: number;
   rolloverThresholdDeg: number;
   mq135HazardThresholdPpm: number;
+  // ESP32 Wi-Fi Telemetry Configuration
+  esp32WifiIp: string;
+  esp32WifiMode: 'HTTP_POLL' | 'WEBSOCKET';
+  esp32WifiPollIntervalMs: number;
+  esp32WifiAutoConnect: boolean;
 }
 
 export interface RadioToast {

@@ -47,6 +47,8 @@ import { VehicleDetailModal } from './components/VehicleDetailModal';
 import { EmergencyStopModal } from './components/EmergencyStopModal';
 import { BroadcastModal } from './components/BroadcastModal';
 import { WeatherModal } from './components/WeatherModal';
+import { Esp32WifiModal } from './components/Esp32WifiModal';
+import { simulateEsp32WifiPacket, startEsp32WifiPolling } from './utils/hardwareReceiver';
 
 export function App() {
   // Navigation & UI State
@@ -56,6 +58,7 @@ export function App() {
   const [isEstopModalOpen, setIsEstopModalOpen] = useState(false);
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState(false);
+  const [isEsp32WifiModalOpen, setIsEsp32WifiModalOpen] = useState(false);
   const [radioNotice, setRadioNotice] = useState<RadioToast | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleTwin | null>(null);
 
@@ -95,6 +98,9 @@ export function App() {
         neo6mGps: data.neo6mGps ? { ...prev.neo6mGps, ...data.neo6mGps } : prev.neo6mGps,
         mpu6050: data.mpu6050 ? { ...prev.mpu6050, ...data.mpu6050 } : prev.mpu6050,
         vibrationMotors: data.vibrationMotors ? { ...prev.vibrationMotors, ...data.vibrationMotors } : prev.vibrationMotors,
+        checkpointStation: data.checkpointStation ? { ...prev.checkpointStation, ...data.checkpointStation } : prev.checkpointStation,
+        esp32Wifi: data.esp32Wifi ? { ...prev.esp32Wifi, ...data.esp32Wifi } : prev.esp32Wifi,
+        rawSerialLogs: data.rawSerialLogs ? data.rawSerialLogs : prev.rawSerialLogs,
       };
 
       // Automated Hardware Interlocks:
@@ -277,6 +283,34 @@ export function App() {
       return () => clearInterval(timer);
     }
   }, [settings.weatherAutoSync, settings.weatherIntervalSec, fetchWeather]);
+
+  // ESP32 Wi-Fi Auto-Connect Polling Handler
+  useEffect(() => {
+    if (!settings.esp32WifiAutoConnect || !settings.esp32WifiIp) return;
+
+    let isMounted = true;
+    const cleanup = startEsp32WifiPolling(
+      {
+        ipAddress: settings.esp32WifiIp,
+        pollIntervalMs: settings.esp32WifiPollIntervalMs || 1500,
+      },
+      (data: Partial<HardwareTelemetry>) => {
+        if (isMounted) {
+          handleUpdateHardwareTelemetry(data);
+        }
+      },
+      () => {},
+      (err: string) => {
+        // Warning logged to debug console, silent in UI
+        console.warn('ESP32 Wi-Fi Auto-connect poll warning:', err);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      cleanup();
+    };
+  }, [settings.esp32WifiAutoConnect, settings.esp32WifiIp, settings.esp32WifiPollIntervalMs, handleUpdateHardwareTelemetry]);
 
   // WebSocket Connection Handler — when connected, backend pushes real vehicle telemetry
   useEffect(() => {
@@ -713,6 +747,8 @@ export function App() {
           onToggleRole={handleToggleRole}
           onOpenEmergencyModal={() => setIsEstopModalOpen(true)}
           isEmergencyActive={isEmergencyActive}
+          onOpenEsp32WifiModal={() => setIsEsp32WifiModalOpen(true)}
+          esp32WifiConnected={Boolean(hardwareTelemetry.esp32Wifi?.connected)}
         />
 
         {/* Content Body Container */}
@@ -726,6 +762,7 @@ export function App() {
             speedLimitKmh={settings.speedClampLimitKmh}
             onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
             onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+            onOpenEsp32WifiModal={() => setIsEsp32WifiModalOpen(true)}
             telemetry={hardwareTelemetry}
           />
 
@@ -745,6 +782,8 @@ export function App() {
                 userRole={settings.role}
                 weather={weather}
                 telemetry={hardwareTelemetry}
+                onOpenEsp32WifiModal={() => setIsEsp32WifiModalOpen(true)}
+                onSimulateEsp32WifiPacket={() => handleUpdateHardwareTelemetry(simulateEsp32WifiPacket(settings.esp32WifiIp))}
               />
             )}
 
@@ -753,6 +792,7 @@ export function App() {
                 telemetry={hardwareTelemetry}
                 onUpdateTelemetry={handleUpdateHardwareTelemetry}
                 userRole={settings.role}
+                onOpenEsp32WifiModal={() => setIsEsp32WifiModalOpen(true)}
               />
             )}
 
@@ -766,6 +806,7 @@ export function App() {
                 onManualWeatherRefresh={fetchWeather}
                 weather={weather}
                 onOpenWeatherModal={() => setIsWeatherModalOpen(true)}
+                onOpenEsp32WifiModal={() => setIsEsp32WifiModalOpen(true)}
               />
             )}
           </div>
@@ -790,6 +831,19 @@ export function App() {
         onRefreshWeather={fetchWeather}
         telemetry={hardwareTelemetry}
         deviceLocation={deviceLocation}
+        onOpenEsp32WifiModal={() => {
+          setIsWeatherModalOpen(false);
+          setIsEsp32WifiModalOpen(true);
+        }}
+      />
+
+      {/* ESP32 Wi-Fi Telemetry & Sensor Hub Modal */}
+      <Esp32WifiModal
+        isOpen={isEsp32WifiModalOpen}
+        onClose={() => setIsEsp32WifiModalOpen(false)}
+        telemetry={hardwareTelemetry}
+        onUpdateTelemetry={handleUpdateHardwareTelemetry}
+        weather={weather}
       />
 
       {/* Emergency Stop Protocol Confirmation Modal */}

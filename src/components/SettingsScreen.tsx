@@ -11,6 +11,7 @@ import {
   Eye,
   RefreshCw,
   ExternalLink,
+  Wifi,
 } from 'lucide-react';
 import { SystemSettings, UserRole, WeatherData } from '../types';
 
@@ -21,6 +22,7 @@ interface SettingsScreenProps {
   onManualWeatherRefresh: () => void;
   weather?: WeatherData;
   onOpenWeatherModal?: () => void;
+  onOpenEsp32WifiModal?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -30,6 +32,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onManualWeatherRefresh,
   weather,
   onOpenWeatherModal,
+  onOpenEsp32WifiModal,
 }) => {
   return (
     <div className="flex flex-col gap-3 select-none text-[#E0E0E0] pb-6 font-sans">
@@ -435,6 +438,149 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <span className="text-slate-400 text-[11px] font-bold">MPU ROLLOVER ALARM:</span>
                 <span className="text-purple-300 font-bold">{settings.rolloverThresholdDeg}° PITCH/ROLL</span>
                 <span className="text-[10px] text-slate-400">Dynamic incline safety warning</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 7: ESP32 Wi-Fi Telemetry Station & Sensor Gateway */}
+        <div className="bg-[#0A0A0B] border border-cyan-500/40 overflow-hidden flex flex-col md:col-span-2">
+          <div className="px-3.5 py-2.5 bg-cyan-950/20 border-b border-cyan-500/30 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Wifi className="w-4 h-4 text-cyan-400" />
+              <span className="font-mono font-bold text-xs text-cyan-300 uppercase tracking-wider">
+                ESP32 Wi-Fi Telemetry Station &amp; Sensor Hub (Smoke, DHT, Distance)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs bg-cyan-950 text-cyan-200 border border-cyan-500 px-2 py-0.5 font-bold">
+                GROUND-TRUTH WEATHER &amp; PROXIMITY
+              </span>
+              {onOpenEsp32WifiModal && (
+                <button
+                  type="button"
+                  onClick={onOpenEsp32WifiModal}
+                  className="bg-cyan-500 hover:bg-cyan-400 text-black font-mono text-xs font-bold px-2.5 py-1 flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>OPEN ESP32 CONSOLE</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="p-3.5 grid grid-cols-1 md:grid-cols-3 gap-3 font-mono text-xs">
+            {/* Column 1: IP & Presets */}
+            <div className="flex flex-col gap-2 bg-black p-3 border border-[#2a2a30]">
+              <label htmlFor="settings-esp32-ip" className="text-slate-300 text-xs uppercase font-bold">
+                ESP32 IP / HOSTNAME
+              </label>
+              <input
+                id="settings-esp32-ip"
+                type="text"
+                value={settings.esp32WifiIp}
+                onChange={(e) => onUpdateSettings({ esp32WifiIp: e.target.value })}
+                placeholder="192.168.4.1 or 192.168.1.150"
+                className="bg-[#111113] border border-[#333338] p-2 text-cyan-300 font-mono text-xs focus:outline-hidden font-bold"
+              />
+              <div className="flex flex-wrap gap-1.5 mt-0.5">
+                {[
+                  { label: 'AP: 192.168.4.1', val: '192.168.4.1' },
+                  { label: 'LAN: .150', val: '192.168.1.150' },
+                  { label: 'mDNS', val: 'esp32.local' },
+                ].map((preset) => (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() => onUpdateSettings({ esp32WifiIp: preset.val })}
+                    className={`px-2 py-0.5 text-[10px] border cursor-pointer font-bold ${
+                      settings.esp32WifiIp === preset.val
+                        ? 'bg-cyan-900/60 border-cyan-400 text-white'
+                        : 'bg-[#18181A] border-[#333338] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-1">
+                Default SoftAP IP is 192.168.4.1. Router Station mode uses DHCP LAN IP.
+              </span>
+            </div>
+
+            {/* Column 2: Protocol & Auto-Connect */}
+            <div className="flex flex-col gap-2 bg-black p-3 border border-[#2a2a30]">
+              <span className="text-slate-300 text-xs uppercase font-bold">COMMUNICATION PROTOCOL</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onUpdateSettings({ esp32WifiMode: 'HTTP_POLL' })}
+                  className={`py-1.5 text-xs font-bold border cursor-pointer transition-colors ${
+                    settings.esp32WifiMode === 'HTTP_POLL'
+                      ? 'bg-cyan-600 text-white border-cyan-400 shadow-xs'
+                      : 'bg-[#18181A] text-slate-400 border-[#333338] hover:text-white'
+                  }`}
+                >
+                  HTTP POLLING (/data)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateSettings({ esp32WifiMode: 'WEBSOCKET' })}
+                  className={`py-1.5 text-xs font-bold border cursor-pointer transition-colors ${
+                    settings.esp32WifiMode === 'WEBSOCKET'
+                      ? 'bg-cyan-600 text-white border-cyan-400 shadow-xs'
+                      : 'bg-[#18181A] text-slate-400 border-[#333338] hover:text-white'
+                  }`}
+                >
+                  WEBSOCKET (ws://)
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#222]">
+                <div>
+                  <span className="text-white font-bold block text-xs">AUTO-CONNECT ON LOAD</span>
+                  <span className="text-[10px] text-slate-400">Initiates Wi-Fi polling automatically</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.esp32WifiAutoConnect}
+                  aria-label="Auto-connect to ESP32 on load"
+                  onChange={(e) => onUpdateSettings({ esp32WifiAutoConnect: e.target.checked })}
+                  className="w-4 h-4 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Column 3: Polling Rate & Telemetry Summary */}
+            <div className="flex flex-col gap-2 bg-black p-3 border border-[#2a2a30]">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300 text-xs uppercase font-bold">POLL INTERVAL</span>
+                <span className="text-cyan-300 font-bold">{settings.esp32WifiPollIntervalMs} ms</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[500, 1000, 1500, 3000].map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => onUpdateSettings({ esp32WifiPollIntervalMs: rate })}
+                    className={`py-1 text-[11px] font-bold border cursor-pointer ${
+                      settings.esp32WifiPollIntervalMs === rate
+                        ? 'bg-cyan-600 text-white border-cyan-400'
+                        : 'bg-[#18181A] text-slate-400 border-[#333338] hover:text-white'
+                    }`}
+                  >
+                    {rate < 1000 ? `${rate}ms` : `${rate / 1000}s`}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2 p-2 bg-[#12161A] border border-cyan-950 text-[11px] text-slate-300 flex flex-col gap-1">
+                <span className="text-cyan-400 font-bold">Active Sensor Metrics:</span>
+                <div className="grid grid-cols-3 gap-1 text-[10px]">
+                  <span>• Smoke (MQ)</span>
+                  <span>• DHT Temp/Hum</span>
+                  <span>• Distance (US)</span>
+                </div>
               </div>
             </div>
           </div>

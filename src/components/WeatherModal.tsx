@@ -16,6 +16,8 @@ import {
   Waves,
   Zap,
   Cpu,
+  Wifi,
+  Sliders,
 } from 'lucide-react';
 import { WeatherData, HardwareTelemetry } from '../types';
 
@@ -26,6 +28,7 @@ interface WeatherModalProps {
   onRefreshWeather: () => Promise<void>;
   telemetry?: HardwareTelemetry;
   deviceLocation?: { lat: number; lng: number; source: 'neo6m' | 'browser' | 'fallback' };
+  onOpenEsp32WifiModal?: () => void;
 }
 
 export const WeatherModal: React.FC<WeatherModalProps> = ({
@@ -35,6 +38,7 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
   onRefreshWeather,
   telemetry,
   deviceLocation,
+  onOpenEsp32WifiModal,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -177,44 +181,123 @@ export const WeatherModal: React.FC<WeatherModalProps> = ({
             </div>
           </div>
 
-          {/* DUAL SOURCE TELEMETRY: HARDWARE SENSOR vs REGIONAL WEATHER */}
+          {/* DUAL SOURCE TELEMETRY: GOOGLE REGIONAL WEATHER vs ESP32 WI-FI SENSORS */}
           {telemetry && (
-            <div className="bg-[#0e1420] border border-blue-500/60 p-3 flex flex-col md:flex-row items-center justify-between gap-3 font-mono text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-blue-950 border border-blue-400 text-cyan-300 shrink-0">
-                  <Cpu className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="font-bold text-white uppercase flex items-center gap-2">
-                    <span>ON-BOARD DHT22 HARDWARE VALIDATION</span>
-                    <span className="text-[10px] px-1.5 py-0.2 bg-blue-900 text-blue-200 border border-blue-400 font-semibold">
-                      PHYSICAL SENSOR
+            <div className="bg-[#090e18] border-2 border-cyan-500/60 p-3.5 flex flex-col gap-3 font-mono text-xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#1c2738] pb-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-cyan-950 border border-cyan-400 text-cyan-300 shrink-0">
+                    <Wifi className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-white uppercase flex items-center gap-2">
+                      <span>DUAL SOURCE METEOROLOGY: GOOGLE SATELLITE vs. ESP32 WI-FI GROUND STATION</span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-cyan-900 text-cyan-200 border border-cyan-400 font-bold">
+                        {telemetry.esp32Wifi?.connected ? 'WI-FI ONLINE' : 'STANDBY'}
+                      </span>
+                    </div>
+                    <span className="text-slate-300 text-[11px]">
+                      Open-Meteo regional mountain crest data paired with real-time ESP32 ground-truth telemetry (Smoke, DHT, Distance).
                     </span>
                   </div>
-                  <span className="text-slate-300 text-[11px]">
-                    Vehicle cabin/chassis microclimate vs. mountain crest open-air meteorological station.
-                  </span>
                 </div>
+
+                {onOpenEsp32WifiModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenEsp32WifiModal}
+                    className="px-3 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-500 font-bold cursor-pointer transition-colors text-xs flex items-center gap-1.5"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>CONFIG ESP32 WI-FI</span>
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                <div className="bg-black/80 px-3 py-1.5 border border-[#333338] text-center">
-                  <span className="text-[10px] text-slate-400 block">DHT22 ON-BOARD</span>
-                  <span className="text-white font-bold text-sm">
-                    {telemetry.dht22.temperatureC.toFixed(1)}°C / {telemetry.dht22.humidityPercent}% RH
-                  </span>
+              {/* 4-Item Side-by-Side Dual Comparison */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {/* 1. Temperature */}
+                <div className="bg-black/90 p-2.5 border border-[#1b2636] flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">1. TEMPERATURE COMPARISON</span>
+                  <div className="mt-1 flex justify-between items-baseline">
+                    <div>
+                      <span className="text-xs text-slate-400 block">GOOGLE API</span>
+                      <span className="text-base font-bold text-white">{weather.temperatureC.toFixed(1)}°C</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-cyan-400 block">ESP32 DHT</span>
+                      <span className="text-base font-bold text-cyan-300">
+                        {(telemetry.esp32Wifi?.dht.temperatureC ?? telemetry.dht22.temperatureC).toFixed(1)}°C
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-1 border-t border-[#18202d] flex justify-between text-[10px] text-yellow-300 font-bold">
+                    <span>Variance (Δ):</span>
+                    <span>{(Math.abs((telemetry.esp32Wifi?.dht.temperatureC ?? telemetry.dht22.temperatureC) - weather.temperatureC)).toFixed(1)}°C</span>
+                  </div>
                 </div>
-                <div className="bg-black/80 px-3 py-1.5 border border-[#333338] text-center">
-                  <span className="text-[10px] text-slate-400 block">STATION READING</span>
-                  <span className="text-cyan-300 font-bold text-sm">
-                    {weather.temperatureC.toFixed(1)}°C / {weather.relativeHumidity}% RH
-                  </span>
+
+                {/* 2. Humidity */}
+                <div className="bg-black/90 p-2.5 border border-[#1b2636] flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">2. RELATIVE HUMIDITY</span>
+                  <div className="mt-1 flex justify-between items-baseline">
+                    <div>
+                      <span className="text-xs text-slate-400 block">GOOGLE API</span>
+                      <span className="text-base font-bold text-white">{weather.relativeHumidity}%</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-blue-400 block">ESP32 DHT</span>
+                      <span className="text-base font-bold text-blue-300">
+                        {telemetry.esp32Wifi?.dht.humidityPercent ?? telemetry.dht22.humidityPercent}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-1 border-t border-[#18202d] flex justify-between text-[10px] text-yellow-300 font-bold">
+                    <span>Variance (Δ):</span>
+                    <span>{(Math.abs((telemetry.esp32Wifi?.dht.humidityPercent ?? telemetry.dht22.humidityPercent) - weather.relativeHumidity))}% RH</span>
+                  </div>
                 </div>
-                <div className="bg-black/80 px-3 py-1.5 border border-[#333338] text-center">
-                  <span className="text-[10px] text-slate-400 block">VARIANCE</span>
-                  <span className="text-yellow-300 font-bold text-sm">
-                    Δ {(Math.abs(telemetry.dht22.temperatureC - weather.temperatureC)).toFixed(1)}°C
-                  </span>
+
+                {/* 3. Atmosphere & Smoke */}
+                <div className="bg-black/90 p-2.5 border border-[#1b2636] flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">3. ATMOSPHERE &amp; SMOKE</span>
+                  <div className="mt-1 flex justify-between items-baseline">
+                    <div>
+                      <span className="text-xs text-slate-400 block">REGIONAL FOG</span>
+                      <span className="text-sm font-bold text-white">{weather.visibilityMeters}m</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-amber-400 block">ESP32 SMOKE</span>
+                      <span className="text-sm font-bold text-amber-300">
+                        {telemetry.esp32Wifi?.smoke.ppm ?? telemetry.mq135.ppm} PPM
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-1 border-t border-[#18202d] flex justify-between text-[10px]">
+                    <span className="text-slate-400">Air Status:</span>
+                    <span className="text-green-300 font-bold">{telemetry.esp32Wifi?.smoke.status ?? telemetry.mq135.airQualityStatus}</span>
+                  </div>
+                </div>
+
+                {/* 4. Ground Distance & Clearance */}
+                <div className="bg-black/90 p-2.5 border border-[#1b2636] flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">4. CLEARANCE &amp; INFLOW</span>
+                  <div className="mt-1 flex justify-between items-baseline">
+                    <div>
+                      <span className="text-xs text-slate-400 block">SUMP INFLOW</span>
+                      <span className="text-sm font-bold text-white">{weather.pitSumpInflowM3Hr} m³/h</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-yellow-400 block">ESP32 DIST</span>
+                      <span className="text-sm font-bold text-yellow-300">
+                        {(telemetry.esp32Wifi?.distance.distanceMeters ?? telemetry.lidar8m.distanceMeters).toFixed(2)}m
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-1 border-t border-[#18202d] flex justify-between text-[10px]">
+                    <span className="text-slate-400">Obstacle Alert:</span>
+                    <span className="text-cyan-300 font-bold">{telemetry.esp32Wifi?.distance.alert ?? telemetry.lidar8m.obstacleAlert}</span>
+                  </div>
                 </div>
               </div>
             </div>

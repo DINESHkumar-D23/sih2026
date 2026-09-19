@@ -30,18 +30,21 @@ import {
   disconnectWebSerial,
   sendWebSerialCommand,
   sendWebSocketCommand,
+  simulateEsp32CheckpointPacket,
 } from '../utils/hardwareReceiver';
 
 interface HardwareTelemetryScreenProps {
   telemetry: HardwareTelemetry;
   onUpdateTelemetry: (data: Partial<HardwareTelemetry>) => void;
   userRole?: UserRole;
+  onOpenEsp32WifiModal?: () => void;
 }
 
 export const HardwareTelemetryScreen: React.FC<HardwareTelemetryScreenProps> = ({
   telemetry,
   onUpdateTelemetry,
   userRole = 'dispatcher',
+  onOpenEsp32WifiModal,
 }) => {
   const [isConnectingSerial, setIsConnectingSerial] = useState(false);
   const [serialError, setSerialError] = useState<string | null>(null);
@@ -188,6 +191,32 @@ export const HardwareTelemetryScreen: React.FC<HardwareTelemetryScreenProps> = (
             </button>
           )}
 
+          {onOpenEsp32WifiModal && (
+            <button
+              type="button"
+              onClick={onOpenEsp32WifiModal}
+              className={`px-3 py-2 border font-mono text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                telemetry.esp32Wifi?.connected
+                  ? 'bg-cyan-950 text-cyan-200 border-cyan-400 shadow-xs'
+                  : 'bg-[#10141d] hover:bg-[#192230] text-cyan-300 border-cyan-500'
+              }`}
+              title="Connect or configure ESP32 Wi-Fi Telemetry Station (Smoke, DHT, Distance)"
+            >
+              <Wifi className={`w-3.5 h-3.5 ${telemetry.esp32Wifi?.connected ? 'text-cyan-400 animate-pulse' : 'text-slate-400'}`} />
+              <span>{telemetry.esp32Wifi?.connected ? 'ESP32 WI-FI ONLINE' : 'CONFIG ESP32 WI-FI'}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onUpdateTelemetry(simulateEsp32CheckpointPacket(1))}
+            className="px-3 py-2 bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-500 font-mono text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+            title="Inject real-time ESP32 packet (DHT22, MQ-135 ADC, NRF24 DATA SENT)"
+          >
+            <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span className="whitespace-nowrap">SIMULATE ESP32 PACKET</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsTestModeOpen(!isTestModeOpen)}
@@ -204,9 +233,35 @@ export const HardwareTelemetryScreen: React.FC<HardwareTelemetryScreenProps> = (
       </div>
 
       {serialError && (
-        <div className="p-3 bg-red-950/80 border border-red-500 text-red-200 font-mono text-xs font-bold flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-          <span>{serialError}</span>
+        <div className="p-3.5 bg-red-950/90 border-2 border-red-500 text-red-200 font-mono text-xs flex flex-col gap-2 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-red-300">
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+              <span>{serialError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSerialError(null)}
+              className="text-slate-400 hover:text-white px-2 py-0.5 border border-red-800 text-[11px] cursor-pointer"
+            >
+              DISMISS
+            </button>
+          </div>
+
+          <div className="bg-black/80 p-2.5 border border-red-800/60 text-[11px] text-slate-300 flex flex-col gap-1 leading-relaxed">
+            <span className="text-yellow-300 font-bold">
+              💡 HOW TO FIX: "Failed to execute 'open' on 'SerialPort'"
+            </span>
+            <span>
+              1. <strong>Close the Arduino IDE Serial Monitor</strong>: Windows COM ports are strictly single-client. If the Serial Monitor or Serial Plotter in the Arduino IDE is open, close it!
+            </span>
+            <span>
+              2. <strong>Close any other serial terminal</strong>: Ensure PuTTY, VS Code Serial Monitor, or other browser tabs accessing the port are closed.
+            </span>
+            <span>
+              3. <strong>Click "CONNECT USB SERIAL (COM)"</strong> again and select your ESP32 port.
+            </span>
+          </div>
         </div>
       )}
 
@@ -216,6 +271,356 @@ export const HardwareTelemetryScreen: React.FC<HardwareTelemetryScreenProps> = (
           <span>{hapticTriggerFeedback}</span>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* DEDICATED ESP32 WI-FI WEATHER & IOT TELEMETRY STATION (SMOKE, DHT, DIST) */}
+      {/* ========================================================================= */}
+      <div className="bg-[#090C12] border-2 border-cyan-500/70 p-4 shadow-xl flex flex-col gap-3 font-mono">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#1c2738] pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-cyan-950 border border-cyan-400 text-cyan-300">
+              <Wifi className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white uppercase tracking-wider">
+                  ESP32 WI-FI WEATHER &amp; SENSOR HUB // SMOKE &bull; DHT &bull; DISTANCE
+                </span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 border font-bold ${
+                    telemetry.esp32Wifi?.connected
+                      ? 'bg-green-950 text-green-300 border-green-500 animate-pulse'
+                      : 'bg-slate-900 text-slate-400 border-slate-700'
+                  }`}
+                >
+                  {telemetry.esp32Wifi?.connected ? 'WI-FI STREAM ONLINE' : 'WI-FI STANDBY'}
+                </span>
+              </div>
+              <span className="text-xs text-slate-400 block">
+                Target IP: <strong className="text-cyan-300">{telemetry.esp32Wifi?.ipAddress || '192.168.4.1'}</strong> &bull; Mode: {telemetry.esp32Wifi?.mode || 'HTTP_POLL'} &bull; Packets: {telemetry.esp32Wifi?.packetsCount || 0}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onOpenEsp32WifiModal && (
+              <button
+                type="button"
+                onClick={onOpenEsp32WifiModal}
+                className="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500 text-cyan-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>CONFIG WI-FI</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 3-Column Real-time Metrics Display */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Smoke Sensor */}
+          <div className="bg-black p-3 border border-[#1b2636] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-amber-400 font-bold flex items-center gap-1 uppercase">
+                  <Wind className="w-3.5 h-3.5" />
+                  <span>SMOKE / GAS SENSOR</span>
+                </span>
+                <span className="text-[10px] text-slate-400">GPIO 34</span>
+              </div>
+              <div className="mt-1 flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-bold text-white">
+                    {telemetry.esp32Wifi?.smoke.adc ?? telemetry.mq135.rawAdc ?? 412}
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-1">ADC</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-amber-300 font-bold text-lg">
+                    {telemetry.esp32Wifi?.smoke.ppm ?? telemetry.mq135.ppm ?? 395}
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-1">PPM</span>
+                </div>
+              </div>
+              <div className="mt-2 w-full bg-[#18181c] h-2 border border-[#333338] overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.min(100, ((telemetry.esp32Wifi?.smoke.adc ?? telemetry.mq135.rawAdc ?? 412) / 2000) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#18202d] flex justify-between text-[10px]">
+              <span className="text-slate-400">Status:</span>
+              <span className="text-green-300 font-bold">
+                {telemetry.esp32Wifi?.smoke.status ?? telemetry.mq135.airQualityStatus ?? 'Clean'}
+              </span>
+            </div>
+          </div>
+
+          {/* DHT Microclimate Sensor */}
+          <div className="bg-black p-3 border border-[#1b2636] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-cyan-400 font-bold flex items-center gap-1 uppercase">
+                  <Thermometer className="w-3.5 h-3.5" />
+                  <span>DHT22 MICROCLIMATE</span>
+                </span>
+                <span className="text-[10px] text-slate-400">GPIO 4</span>
+              </div>
+              <div className="mt-1 flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-bold text-white">
+                    {(telemetry.esp32Wifi?.dht.temperatureC ?? telemetry.dht22.temperatureC ?? 24.2).toFixed(1)}°C
+                  </span>
+                  <span className="text-[10px] text-slate-400 block">TEMPERATURE</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-cyan-300">
+                    {telemetry.esp32Wifi?.dht.humidityPercent ?? telemetry.dht22.humidityPercent ?? 78}%
+                  </span>
+                  <span className="text-[10px] text-slate-400 block">HUMIDITY</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#18202d] flex justify-between text-[10px] text-slate-400">
+              <span>Heat: {telemetry.esp32Wifi?.dht.heatIndexC ?? telemetry.dht22.heatIndexC ?? 25.1}°C</span>
+              <span>Dew: {telemetry.esp32Wifi?.dht.dewPointC ?? telemetry.dht22.dewPointC ?? 20.3}°C</span>
+            </div>
+          </div>
+
+          {/* Distance / Proximity Sensor */}
+          <div className="bg-black p-3 border border-[#1b2636] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-yellow-400 font-bold flex items-center gap-1 uppercase">
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>DISTANCE / PROXIMITY</span>
+                </span>
+                <span className="text-[10px] text-slate-400">TRIG 5 / ECHO 18</span>
+              </div>
+              <div className="mt-1 flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-bold text-white">
+                    {(telemetry.esp32Wifi?.distance.distanceMeters ?? telemetry.lidar8m.distanceMeters ?? 5.42).toFixed(2)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-1">METERS</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-yellow-300 font-bold text-base">
+                    {telemetry.esp32Wifi?.distance.distanceCm ?? Math.round((telemetry.lidar8m.distanceMeters ?? 5.42) * 100)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 ml-1">CM</span>
+                </div>
+              </div>
+              <div className="mt-2 w-full bg-[#18181c] h-2 border border-[#333338] overflow-hidden relative">
+                <div className="absolute top-0 bottom-0 left-[25%] w-0.5 bg-red-500" />
+                <div className="absolute top-0 bottom-0 left-[50%] w-0.5 bg-yellow-500" />
+                <div
+                  className="h-full bg-yellow-500 transition-all duration-200"
+                  style={{
+                    width: `${Math.min(100, ((telemetry.esp32Wifi?.distance.distanceMeters ?? telemetry.lidar8m.distanceMeters ?? 5.4) / 8.0) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#18202d] flex justify-between text-[10px]">
+              <span className="text-slate-400">Obstacle Alert:</span>
+              <span className="text-cyan-300 font-bold">
+                {telemetry.esp32Wifi?.distance.alert ?? telemetry.lidar8m.obstacleAlert ?? 'CLEAR'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DEDICATED STATIONARY CHECKPOINT ESP32 & NRF24L01 CONTROLLER PANEL */}
+      {/* ========================================================================= */}
+      <div className="bg-[#090B10] border-2 border-cyan-500/60 p-4 shadow-xl flex flex-col gap-3 font-mono">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#20293a] pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-cyan-950 border border-cyan-500 text-cyan-300">
+              <Radio className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white uppercase tracking-wider">
+                  STATIONARY CHECKPOINT IOT NODE // ESP32 + NRF24L01 + DHT22 + MQ-135
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-blue-900/80 text-blue-200 border border-blue-500 font-bold rounded-xs">
+                  NODE1
+                </span>
+              </div>
+              <span className="text-xs text-slate-400 block">
+                Ingesting Pin 4 (DHT22), Pin 34 (MQ-135 ADC), and CE:27/CSN:5 (NRF24L01 250kbps)
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-xs px-2.5 py-1 border font-bold flex items-center gap-1.5 ${
+                telemetry.checkpointStation?.nrfStatus === 'DATA SENT'
+                  ? 'bg-green-950 text-green-300 border-green-500 animate-pulse'
+                  : 'bg-black text-slate-400 border-slate-700'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-green-400" />
+              <span>NRF24: {telemetry.checkpointStation?.nrfStatus || 'STANDBY'}</span>
+            </span>
+
+            <span className="text-xs px-2 py-1 bg-black border border-[#2c3345] text-cyan-300 font-bold">
+              115200 BAUD
+            </span>
+          </div>
+        </div>
+
+        {/* 4-Column Sensor Breakdown */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* 1. Station Identity */}
+          <div className="bg-black p-3 border border-[#1f2838] flex flex-col justify-between">
+            <div>
+              <span className="text-[11px] text-slate-400 block font-bold">CHECKPOINT ASSIGNMENT</span>
+              <span className="text-base text-cyan-300 font-bold mt-1 block">
+                {telemetry.checkpointStation?.checkpointCode || 'CP-01'}: {telemetry.checkpointStation?.checkpointName || 'Pit Floor Sump Gate'}
+              </span>
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Haul Ramp RL 1,050m &bull; Speed Cap: 20 km/h
+              </span>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#18202d] text-[10px] text-slate-500">
+              Checkpoint ID: {telemetry.checkpointStation?.checkpointId || 1}
+            </div>
+          </div>
+
+          {/* 2. DHT22 */}
+          <div className="bg-black p-3 border border-[#1f2838] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
+                  <Thermometer className="w-3.5 h-3.5 text-orange-400" />
+                  <span>DHT22 SENSOR</span>
+                </span>
+                <span className="text-[10px] text-cyan-400 font-bold">PIN 4</span>
+              </div>
+              <div className="mt-1 flex items-baseline gap-3">
+                <div>
+                  <span className="text-2xl font-bold text-white">{telemetry.dht22.temperatureC.toFixed(1)}°C</span>
+                  <span className="text-[10px] text-slate-400 block">TEMP</span>
+                </div>
+                <div>
+                  <span className="text-2xl font-bold text-cyan-300">{telemetry.dht22.humidityPercent}%</span>
+                  <span className="text-[10px] text-slate-400 block">HUMIDITY</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#18202d] flex justify-between text-[10px] text-slate-400">
+              <span>Heat Index: {telemetry.dht22.heatIndexC}°C</span>
+              <span>Dew: {telemetry.dht22.dewPointC}°C</span>
+            </div>
+          </div>
+
+          {/* 3. MQ-135 ADC */}
+          <div className="bg-black p-3 border border-[#1f2838] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
+                  <Wind className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>MQ-135 AIR</span>
+                </span>
+                <span className="text-[10px] text-amber-400 font-bold">PIN 34 (ADC)</span>
+              </div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-white">
+                  {telemetry.mq135.rawAdc ?? telemetry.checkpointStation?.mq135Adc ?? 412}
+                </span>
+                <span className="text-xs text-slate-400 font-bold">/ 4095 ADC</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-cyan-300 font-bold">{telemetry.mq135.ppm} PPM</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 font-bold rounded-xs ${
+                    telemetry.mq135.airQualityStatus === 'Clean'
+                      ? 'bg-green-950 text-green-300 border border-green-600'
+                      : 'bg-yellow-950 text-yellow-300 border border-yellow-600'
+                  }`}
+                >
+                  {telemetry.mq135.airQualityStatus}
+                </span>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#18202d] text-[10px] text-slate-400 flex justify-between">
+              <span>Voltage: {telemetry.mq135.rawVoltage}V</span>
+              <span className={telemetry.mq135.smokeDetected ? 'text-red-400 font-bold' : 'text-green-400 font-semibold'}>
+                {telemetry.mq135.smokeDetected ? 'Fumes Detected' : 'Air Nominal'}
+              </span>
+            </div>
+          </div>
+
+          {/* 4. NRF24L01 Link */}
+          <div className="bg-black p-3 border border-[#1f2838] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-slate-400 font-bold flex items-center gap-1">
+                  <Radio className="w-3.5 h-3.5 text-purple-400" />
+                  <span>NRF24L01 TRANSCEIVER</span>
+                </span>
+                <span className="text-[10px] text-purple-300 font-bold">2.4 GHz</span>
+              </div>
+              <div className="mt-1 flex flex-col gap-0.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Target Address:</span>
+                  <span className="text-white font-bold">{telemetry.checkpointStation?.nrfAddress || 'NODE1'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Data Rate:</span>
+                  <span className="text-cyan-300 font-bold">250 KBPS</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">PA Level:</span>
+                  <span className="text-slate-200">RF24_PA_LOW</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#18202d] text-[10px] text-slate-400 flex justify-between">
+              <span>CE: 27 &bull; CSN: 5</span>
+              <span className="text-green-400 font-bold">
+                {telemetry.checkpointStation?.lastReceived || 'Online'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Live ESP32 Serial Terminal Monitor */}
+        <div className="bg-[#050508] border border-[#1e2535] p-2.5 rounded-xs">
+          <div className="flex items-center justify-between border-b border-[#181e2b] pb-1.5 mb-2 text-[11px]">
+            <span className="font-bold text-slate-300 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span>LIVE ESP32 SERIAL MONITOR STREAM (115200 BAUD)</span>
+            </span>
+            <span className="text-slate-500">USB COM / Web Serial Reader</span>
+          </div>
+
+          <div className="bg-black/90 p-2 border border-[#141a26] text-[11px] font-mono text-cyan-300 max-h-24 overflow-y-auto flex flex-col gap-0.5 select-text">
+            {telemetry.rawSerialLogs && telemetry.rawSerialLogs.length > 0 ? (
+              telemetry.rawSerialLogs.map((line, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="text-slate-600 select-none">&gt;</span>
+                  <span className={line.includes('ERROR') ? 'text-red-400' : line.includes('OK') ? 'text-green-400' : line.includes('DATA SENT') ? 'text-cyan-200 font-bold' : 'text-slate-200'}>
+                    {line}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="text-slate-500 italic">
+                Awaiting serial transmission from ESP32... Click "CONNECT USB SERIAL" or "SIMULATE ESP32 PACKET".
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Optional Hardware Test Bench Sliders for bench-testing */}
       {isTestModeOpen && (

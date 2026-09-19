@@ -24,6 +24,11 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   lidarCriticalThresholdM: 2.0,
   rolloverThresholdDeg: 15.0,
   mq135HazardThresholdPpm: 700,
+  // ESP32 Wi-Fi Telemetry Configuration
+  esp32WifiIp: '192.168.4.1',
+  esp32WifiMode: 'HTTP_POLL',
+  esp32WifiPollIntervalMs: 1500,
+  esp32WifiAutoConnect: false,
 };
 
 export const INITIAL_VEHICLES: VehicleTwin[] = [

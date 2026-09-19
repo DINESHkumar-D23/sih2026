@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Gauge, CloudRain, Wind, AlertOctagon, Megaphone, Droplets, Thermometer, Zap, Cloud, Eye, Vibrate } from 'lucide-react';
+import { Shield, Gauge, CloudRain, Wind, AlertOctagon, Megaphone, Droplets, Thermometer, Zap, Cloud, Eye, Vibrate, Wifi } from 'lucide-react';
 import { WeatherData, HardwareTelemetry } from '../types';
 
 interface OperationalRibbonProps {
@@ -8,6 +8,7 @@ interface OperationalRibbonProps {
   onOpenBroadcast?: () => void;
   onOpenWeatherModal?: () => void;
   telemetry?: HardwareTelemetry;
+  onOpenEsp32WifiModal?: () => void;
 }
 
 export const OperationalRibbon: React.FC<OperationalRibbonProps> = ({
@@ -16,6 +17,7 @@ export const OperationalRibbon: React.FC<OperationalRibbonProps> = ({
   onOpenBroadcast,
   onOpenWeatherModal,
   telemetry,
+  onOpenEsp32WifiModal,
 }) => {
   const isWet = weather.surfaceCondition === 'Wet' || weather.rainMmHr > 1.0;
   const slipLevel = isWet ? (weather.rainMmHr > 10 ? 5 : 4) : 1;
@@ -143,6 +145,48 @@ export const OperationalRibbon: React.FC<OperationalRibbonProps> = ({
                 {telemetry.vibrationMotors.motor1Active ? 'ALERT ON' : 'IDLE'}
               </span>
             </div>
+
+            {/* Stationary Checkpoint ESP32 IoT Node badge */}
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-black border border-cyan-500/60 font-mono text-xs text-cyan-300">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="font-bold hidden sm:inline">CP-01 IOT:</span>
+              <span className="text-white font-bold">{telemetry.dht22.temperatureC.toFixed(1)}°C</span>
+              <span className="text-slate-500">•</span>
+              <span className="text-cyan-200 font-bold">{telemetry.dht22.humidityPercent}%</span>
+              <span className="text-slate-500">•</span>
+              <span className="text-amber-300 font-bold">{telemetry.mq135.rawAdc ?? telemetry.checkpointStation?.mq135Adc ?? 412} ADC</span>
+            </div>
+
+            {/* Dedicated ESP32 Wi-Fi Weather & Ground Sensor Pod Pill */}
+            <button
+              type="button"
+              onClick={onOpenEsp32WifiModal}
+              className={`flex items-center gap-1.5 px-2.5 py-1 font-mono text-xs border cursor-pointer transition-all ${
+                telemetry?.esp32Wifi?.connected
+                  ? 'bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-xs'
+                  : 'bg-[#0f131c] hover:bg-[#161d2a] border-cyan-500/50 text-slate-200 hover:text-white'
+              }`}
+              title="ESP32 Wi-Fi Station: Real-time Smoke, DHT, and Distance metrics"
+            >
+              <Wifi className={`w-3.5 h-3.5 ${telemetry?.esp32Wifi?.connected ? 'text-cyan-400 animate-pulse' : 'text-slate-400'}`} />
+              <span className="font-bold text-white hidden sm:inline">ESP32 WI-FI:</span>
+              <span className="text-cyan-300 font-bold">
+                {(telemetry?.esp32Wifi?.dht.temperatureC ?? telemetry?.dht22.temperatureC ?? 24.2).toFixed(1)}°C
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="text-blue-300 font-bold">
+                {telemetry?.esp32Wifi?.dht.humidityPercent ?? telemetry?.dht22.humidityPercent ?? 78}%
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="text-amber-300 font-bold">
+                SMOKE: {telemetry?.esp32Wifi?.smoke.status ?? telemetry?.mq135.airQualityStatus ?? 'Clean'}
+              </span>
+              <span className="text-slate-500 hidden md:inline">•</span>
+              <span className="text-yellow-300 font-bold hidden md:inline">
+                DIST: {(telemetry?.esp32Wifi?.distance.distanceMeters ?? telemetry?.lidar8m.distanceMeters ?? 5.4).toFixed(1)}M
+              </span>
+              <span className={`w-2 h-2 rounded-full ml-0.5 ${telemetry?.esp32Wifi?.connected ? 'bg-cyan-400 animate-ping' : 'bg-slate-600'}`} />
+            </button>
           </>
         )}
 

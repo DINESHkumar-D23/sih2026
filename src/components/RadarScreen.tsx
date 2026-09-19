@@ -32,6 +32,7 @@ import {
   Vibrate,
   Usb,
   Globe,
+  Wifi,
 } from 'lucide-react';
 import L from 'leaflet';
 import { VehicleTwin, ConflictIncident, RadioToast, UserRole, WeatherData, HardwareTelemetry } from '../types';
@@ -59,6 +60,8 @@ interface RadarScreenProps {
   userRole?: UserRole;
   weather?: WeatherData;
   telemetry?: HardwareTelemetry;
+  onOpenEsp32WifiModal?: () => void;
+  onSimulateEsp32WifiPacket?: () => void;
 }
 
 export const RadarScreen: React.FC<RadarScreenProps> = ({
@@ -74,6 +77,8 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   userRole = 'dispatcher',
   weather,
   telemetry,
+  onOpenEsp32WifiModal,
+  onSimulateEsp32WifiPacket,
 }) => {
   // Active NMDC Mine Site or Live Field Device Mode
   const [activeMine, setActiveMine] = useState<'DEVICE' | '14A' | '14C' | 'DEP5' | 'DONI'>('DEVICE');
@@ -96,7 +101,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
   // Collapsible Dual-Side Panels State ("Two Tabs on Each Side")
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
-  const [leftTab, setLeftTab] = useState<'hardware' | 'interlock' | 'all'>('hardware');
+  const [leftTab, setLeftTab] = useState<'esp32wifi' | 'hardware' | 'interlock' | 'all'>('esp32wifi');
   const [rightTab, setRightTab] = useState<'roster' | 'checkpoints' | 'all'>('roster');
 
   // Trigger Leaflet map resize when panels collapse or expand
@@ -379,13 +384,24 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         const cpMarkers = HAUL_CHECKPOINTS.map((cp) => {
           const pt = samplePointAtDistance(cp.progress * INCLINE_TRACK.totalLength);
           const gps = projectCanvasToGps(pt.x, pt.y, activeMine);
+          const isCp1 = cp.code === 'CP-1';
+          const iotInfo = isCp1
+            ? `<div style="margin-top:4px;padding:4px;background:#f0f9ff;border-left:3px solid #0284c7;font-size:10px;font-family:monospace;">` +
+              `<b style="color:#0369a1;">ESP32 IoT Checkpoint Node (NODE1):</b><br/>` +
+              `Temp: <b>${telemetry?.dht22.temperatureC.toFixed(1) ?? '24.2'}°C</b> &bull; Hum: <b>${telemetry?.dht22.humidityPercent ?? 78}%</b><br/>` +
+              `MQ-135: <b>${telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412} ADC</b> (${telemetry?.mq135.ppm ?? 395} PPM)<br/>` +
+              `NRF24: <b style="color:#16a34a;">${telemetry?.checkpointStation?.nrfStatus || 'DATA SENT'}</b>` +
+              `</div>`
+            : '';
+
           return L.marker([gps.lat, gps.lng], { icon: makeCpIcon(cp) })
             .addTo(map)
             .bindPopup(
               `<b style="color:#0284c7;font-family:monospace;">CHECKPOINT ${cp.code}: ${cp.name}</b><br/>` +
               `<span style="color:black;font-family:monospace;font-size:11px;">` +
               `Elevation: RL ${cp.elevationRL}m &bull; Speed Cap: ${cp.speedLimitKmh} km/h<br/>` +
-              `${cp.description}</span>`
+              `${cp.description}</span>` +
+              iotInfo
             );
         });
 
@@ -797,6 +813,22 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
               <div className="flex items-center gap-1 flex-1 overflow-x-auto">
                 <button
                   type="button"
+                  onClick={() => setLeftTab('esp32wifi')}
+                  className={`px-2 py-1 text-[10.5px] font-bold border transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                    leftTab === 'esp32wifi'
+                      ? 'bg-cyan-950 text-cyan-300 border-cyan-400 shadow-xs'
+                      : 'bg-black text-slate-400 border-[#2a2a30] hover:text-white'
+                  }`}
+                  title="View real-time ESP32 Wi-Fi telemetry (Smoke, DHT, Distance)"
+                >
+                  <Wifi className={`w-3 h-3 ${telemetry?.esp32Wifi?.connected ? 'text-cyan-400 animate-pulse' : 'text-slate-400'}`} />
+                  <span>ESP32 WI-FI</span>
+                  {telemetry?.esp32Wifi?.connected && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                  )}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setLeftTab('hardware')}
                   className={`px-2 py-1 text-[10.5px] font-bold border transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                     leftTab === 'hardware'
@@ -842,6 +874,235 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                 <ChevronsLeft className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            {/* CARD 0: DEDICATED SPECIAL PLACE FOR ESP32 WI-FI METRICS (SMOKE, DHT, DISTANCE) */}
+            {(leftTab === 'esp32wifi' || leftTab === 'all') && (
+              <div className="bg-[#090C12] border-2 border-cyan-500/70 flex flex-col overflow-hidden shadow-lg">
+                <div className="px-3.5 py-2 bg-[#0c121e] border-b border-cyan-500/40 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wifi className="w-4 h-4 text-cyan-400 animate-pulse" />
+                    <div>
+                      <span className="font-mono font-bold text-xs text-white uppercase tracking-wider block">
+                        ESP32 Wi-Fi Sensor Pod
+                      </span>
+                      <span className="text-[10px] text-slate-400 block font-mono">
+                        {telemetry?.esp32Wifi?.ipAddress || '192.168.4.1'} &bull; {telemetry?.esp32Wifi?.mode || 'HTTP_POLL'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`font-mono text-[10px] px-2 py-0.5 border font-bold flex items-center gap-1 ${
+                        telemetry?.esp32Wifi?.connected
+                          ? 'bg-green-950 text-green-300 border-green-500 animate-pulse'
+                          : 'bg-slate-900 text-slate-400 border-slate-700'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${telemetry?.esp32Wifi?.connected ? 'bg-green-400' : 'bg-slate-500'}`} />
+                      <span>{telemetry?.esp32Wifi?.connected ? 'ONLINE' : 'STANDBY'}</span>
+                    </span>
+                    {onOpenEsp32WifiModal && (
+                      <button
+                        type="button"
+                        onClick={onOpenEsp32WifiModal}
+                        className="px-2 py-0.5 bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-500 font-mono text-[10px] font-bold cursor-pointer transition-colors"
+                        title="Configure ESP32 Wi-Fi IP and parameters"
+                      >
+                        CONFIG
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-2.5 flex flex-col gap-2 font-mono text-xs">
+                  {/* DUAL COMPARISON BANNER: GOOGLE REGIONAL WEATHER vs ESP32 GROUND SENSORS */}
+                  {weather && (
+                    <div className="bg-black/90 p-2 border border-[#1b2636] flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[10px] border-b border-[#18202d] pb-1">
+                        <span className="text-slate-400 font-bold uppercase flex items-center gap-1">
+                          <Globe className="w-3 h-3 text-blue-400" />
+                          <span>GOOGLE WEATHER vs ESP32 GROUND</span>
+                        </span>
+                        <span className="text-cyan-300 font-bold">DUAL SYNC</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] pt-0.5">
+                        <div className="flex justify-between bg-[#0b0e14] p-1.5 border border-[#141b26]">
+                          <span className="text-slate-400">Temp:</span>
+                          <span>
+                            <strong className="text-white">{weather.temperatureC.toFixed(1)}°C</strong>
+                            <span className="text-slate-500 mx-0.5">vs</span>
+                            <strong className="text-cyan-300">
+                              {(telemetry?.esp32Wifi?.dht.temperatureC ?? telemetry?.dht22.temperatureC ?? 24.2).toFixed(1)}°C
+                            </strong>
+                          </span>
+                        </div>
+                        <div className="flex justify-between bg-[#0b0e14] p-1.5 border border-[#141b26]">
+                          <span className="text-slate-400">Hum:</span>
+                          <span>
+                            <strong className="text-white">{weather.relativeHumidity}%</strong>
+                            <span className="text-slate-500 mx-0.5">vs</span>
+                            <strong className="text-blue-300">
+                              {telemetry?.esp32Wifi?.dht.humidityPercent ?? telemetry?.dht22.humidityPercent ?? 78}%
+                            </strong>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SENSOR 1: SMOKE / AIR QUALITY */}
+                  <div className="p-2 bg-black border border-amber-500/40 flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-amber-400 flex items-center gap-1 uppercase">
+                        <Wind className="w-3 h-3" />
+                        <span>SMOKE / GAS (MQ-135 / MQ-2)</span>
+                      </span>
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 border ${
+                          (telemetry?.esp32Wifi?.smoke.status ?? telemetry?.mq135.airQualityStatus) === 'Hazardous'
+                            ? 'bg-red-950 text-red-300 border-red-500 animate-pulse'
+                            : (telemetry?.esp32Wifi?.smoke.status ?? telemetry?.mq135.airQualityStatus) === 'Poor'
+                            ? 'bg-yellow-950 text-yellow-300 border-yellow-500'
+                            : 'bg-green-950 text-green-300 border-green-500'
+                        }`}
+                      >
+                        {telemetry?.esp32Wifi?.smoke.status ?? telemetry?.mq135.airQualityStatus ?? 'Clean'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-white font-bold text-lg">
+                          {telemetry?.esp32Wifi?.smoke.adc ?? telemetry?.mq135.rawAdc ?? 412}
+                        </span>
+                        <span className="text-[10px] text-slate-400">/ 4095 ADC</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-amber-300 font-bold text-sm">
+                          {telemetry?.esp32Wifi?.smoke.ppm ?? telemetry?.mq135.ppm ?? 395} PPM
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-[#18181c] h-1.5 border border-[#333338] overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500 transition-all duration-300"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((telemetry?.esp32Wifi?.smoke.adc ?? telemetry?.mq135.rawAdc ?? 412) / 2000) * 100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-slate-400">Fumes Sensor:</span>
+                      <span
+                        className={
+                          telemetry?.esp32Wifi?.smoke.smokeDetected || telemetry?.mq135.smokeDetected
+                            ? 'text-red-400 font-bold animate-pulse'
+                            : 'text-green-400 font-semibold'
+                        }
+                      >
+                        {telemetry?.esp32Wifi?.smoke.smokeDetected || telemetry?.mq135.smokeDetected
+                          ? '⚠ FUMES DETECTED'
+                          : 'AIR NOMINAL'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* SENSOR 2: DHT22 (TEMPERATURE & HUMIDITY) */}
+                  <div className="p-2 bg-black border border-cyan-500/40 flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-cyan-400 flex items-center gap-1 uppercase">
+                        <Thermometer className="w-3 h-3" />
+                        <span>DHT22 MICROCLIMATE</span>
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-bold">PIN 4</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <div className="bg-[#0c1017] p-1.5 border border-[#162130]">
+                        <span className="text-[10px] text-slate-400 block">TEMP</span>
+                        <span className="text-base font-bold text-white block mt-0.5">
+                          {(telemetry?.esp32Wifi?.dht.temperatureC ?? telemetry?.dht22.temperatureC ?? 24.2).toFixed(1)}°C
+                        </span>
+                        <span className="text-[9px] text-orange-400 block">
+                          Heat: {telemetry?.esp32Wifi?.dht.heatIndexC ?? telemetry?.dht22.heatIndexC ?? 25.1}°C
+                        </span>
+                      </div>
+                      <div className="bg-[#0c1017] p-1.5 border border-[#162130]">
+                        <span className="text-[10px] text-slate-400 block">HUMIDITY</span>
+                        <span className="text-base font-bold text-cyan-300 block mt-0.5">
+                          {telemetry?.esp32Wifi?.dht.humidityPercent ?? telemetry?.dht22.humidityPercent ?? 78}%
+                        </span>
+                        <span className="text-[9px] text-blue-400 block">
+                          Dew: {telemetry?.esp32Wifi?.dht.dewPointC ?? telemetry?.dht22.dewPointC ?? 20.3}°C
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SENSOR 3: DISTANCE / PROXIMITY */}
+                  <div className="p-2 bg-black border border-yellow-500/40 flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-yellow-400 flex items-center gap-1 uppercase">
+                        <Eye className="w-3 h-3" />
+                        <span>DISTANCE / PROXIMITY</span>
+                      </span>
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 border ${
+                          (telemetry?.esp32Wifi?.distance.alert ?? telemetry?.lidar8m.obstacleAlert) === 'COLLISION_CRITICAL'
+                            ? 'bg-red-950 text-red-300 border-red-500 animate-pulse'
+                            : (telemetry?.esp32Wifi?.distance.alert ?? telemetry?.lidar8m.obstacleAlert) === 'PROXIMITY_WARNING'
+                            ? 'bg-yellow-950 text-yellow-300 border-yellow-500'
+                            : 'bg-green-950 text-green-300 border-green-500'
+                        }`}
+                      >
+                        {telemetry?.esp32Wifi?.distance.alert ?? telemetry?.lidar8m.obstacleAlert ?? 'CLEAR'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-white font-bold text-lg">
+                          {(telemetry?.esp32Wifi?.distance.distanceMeters ?? telemetry?.lidar8m.distanceMeters ?? 5.42).toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">METERS</span>
+                      </div>
+                      <span className="text-yellow-300 font-bold text-xs">
+                        {telemetry?.esp32Wifi?.distance.distanceCm ?? Math.round((telemetry?.lidar8m.distanceMeters ?? 5.42) * 100)} CM
+                      </span>
+                    </div>
+                    <div className="w-full bg-[#18181c] h-1.5 border border-[#333338] overflow-hidden relative">
+                      <div className="absolute top-0 bottom-0 left-[25%] w-0.5 bg-red-500" />
+                      <div className="absolute top-0 bottom-0 left-[50%] w-0.5 bg-yellow-500" />
+                      <div
+                        className="h-full bg-yellow-500 transition-all duration-200"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            ((telemetry?.esp32Wifi?.distance.distanceMeters ?? telemetry?.lidar8m.distanceMeters ?? 5.4) / 8.0) * 100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Actions & Diagnostics Bar */}
+                  <div className="flex items-center justify-between pt-1 border-t border-[#18202d] text-[10px]">
+                    <span className="text-slate-400">
+                      Packets: <strong className="text-cyan-300">{telemetry?.esp32Wifi?.packetsCount || 0}</strong> &bull; Latency: <strong className="text-yellow-300">{telemetry?.esp32Wifi?.lastPingMs || 0}ms</strong>
+                    </span>
+                    {onSimulateEsp32WifiPacket && (
+                      <button
+                        type="button"
+                        onClick={onSimulateEsp32WifiPacket}
+                        className="text-cyan-300 hover:text-white underline cursor-pointer font-bold"
+                      >
+                        SIMULATE PACKET
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* CARD 1: REAL-TIME HARDWARE SENSOR TELEMETRY */}
             {(leftTab === 'hardware' || leftTab === 'all') && (
@@ -918,11 +1179,16 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                     <span className="font-bold uppercase">MQ-135 AIR</span>
                     <Wind className="w-3 h-3 text-cyan-400" />
                   </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-white font-bold text-base">
-                      {telemetry?.mq135.ppm ?? 395}
+                  <div className="flex items-baseline justify-between">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-white font-bold text-base">
+                        {telemetry?.mq135.ppm ?? 395}
+                      </span>
+                      <span className="text-[10px] text-slate-400">PPM</span>
+                    </div>
+                    <span className="text-[10px] text-amber-300 font-semibold">
+                      {telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412} ADC
                     </span>
-                    <span className="text-[10px] text-slate-400">PPM</span>
                   </div>
                   <span className={`text-[9px] font-bold ${
                     (telemetry?.mq135.ppm ?? 395) > 700 ? 'text-red-400' : 'text-green-400'
@@ -946,6 +1212,24 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                   <span className="text-[9px] text-slate-400">
                     Feels {telemetry?.dht22.heatIndexC ?? 25}°C
                   </span>
+                </div>
+              </div>
+
+              {/* Stationary Checkpoint ESP32 & NRF24L01 IoT Node */}
+              <div className="p-2 bg-[#090E18] border border-cyan-500/50 flex flex-col gap-1 rounded-xs">
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-cyan-300 flex items-center gap-1">
+                    <Radio className="w-3 h-3 text-cyan-400 animate-pulse" />
+                    <span>STATIONARY CHECKPOINT ESP32 (CP-01)</span>
+                  </span>
+                  <span className="px-1 py-0.2 bg-blue-950 text-blue-300 border border-blue-600 font-bold rounded-xs">
+                    NODE1
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-300">
+                  <span>NRF24: <strong className={telemetry?.checkpointStation?.nrfStatus === 'DATA SENT' ? 'text-green-400' : 'text-slate-300'}>{telemetry?.checkpointStation?.nrfStatus || 'DATA SENT'}</strong></span>
+                  <span>ADC: <strong className="text-white">{telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412}</strong></span>
+                  <span className="text-cyan-300 font-bold">{telemetry?.dht22.temperatureC.toFixed(1) ?? '24.2'}°C &bull; {telemetry?.dht22.humidityPercent ?? 78}%</span>
                 </div>
               </div>
 
@@ -1799,6 +2083,19 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                         <span className="text-[9px] text-slate-300">+{cp.crossedVehicles.length - 3}</span>
                       )}
                     </div>
+
+                    {/* ESP32 Checkpoint IoT Node live sensor ribbon */}
+                    {cp.code === 'CP-1' && (
+                      <div className="mt-1 pt-1 border-t border-[#1f2937] flex items-center justify-between text-[9px] bg-cyan-950/40 px-1.5 py-0.5 rounded-xs border border-cyan-500/40">
+                        <span className="text-cyan-300 font-bold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                          <span>ESP32:</span>
+                        </span>
+                        <span className="text-slate-200 font-mono">
+                          {telemetry?.dht22.temperatureC.toFixed(1)}°C &bull; {telemetry?.dht22.humidityPercent}% &bull; MQ:{telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -2056,6 +2353,19 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
                           <span className="text-[9px] text-slate-500 italic">No units passed yet</span>
                         )}
                       </div>
+
+                      {/* ESP32 Checkpoint IoT Node live sensor ribbon */}
+                      {cp.code === 'CP-1' && (
+                        <div className="mt-1 pt-1 border-t border-[#1f2937] flex items-center justify-between text-[9px] bg-cyan-950/40 px-1.5 py-0.5 rounded-xs border border-cyan-500/40">
+                          <span className="text-cyan-300 font-bold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                            <span>ESP32 IOT:</span>
+                          </span>
+                          <span className="text-slate-200 font-mono">
+                            {telemetry?.dht22.temperatureC.toFixed(1)}°C &bull; {telemetry?.dht22.humidityPercent}% &bull; MQ:{telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412} ADC
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
