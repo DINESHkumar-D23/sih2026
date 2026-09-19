@@ -969,11 +969,14 @@ function sanitizeHardwareObject(obj: any): Partial<HardwareTelemetry> {
     };
   }
 
-  // 3. Distance (HC-SR04 Ultrasonic / LIDAR / ToF)
+  // 3. Distance (HC-SR04 Ultrasonic / LIDAR / ToF / NRF24 Bridge)
   let rawDist = obj.distance ?? obj.dist ?? obj.distanceCm ?? obj.distanceMeters ?? obj.lidar8m?.distanceMeters ?? obj.lidar;
+  if (obj.distanceMm !== undefined && typeof obj.distanceMm === 'number') {
+    rawDist = obj.distanceMm / 1000.0;
+  }
   if (typeof rawDist === 'number') {
-    // If greater than 15, assume it was reported in centimeters (e.g. 180cm -> 1.8m)
-    const distM = rawDist > 15 ? rawDist / 100.0 : rawDist;
+    // If greater than 500, assume millimeters; if greater than 15, assume centimeters
+    const distM = rawDist > 500 ? rawDist / 1000.0 : rawDist > 15 ? rawDist / 100.0 : rawDist;
     const d = Math.max(0, Math.min(8.0, distM));
     const alert = d <= 2.0 ? 'COLLISION_CRITICAL' : d <= 4.0 ? 'PROXIMITY_WARNING' : 'CLEAR';
     result.lidar8m = {

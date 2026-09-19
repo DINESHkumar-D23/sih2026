@@ -714,19 +714,22 @@ export const Esp32WifiModal: React.FC<Esp32WifiModalProps> = ({
               {/* Pin Mapping Guide */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
                 <div className="bg-black p-2 border border-[#202736]">
-                  <span className="text-amber-400 font-bold block">1. SMOKE (MQ-135 / MQ-2)</span>
-                  <span className="text-slate-300 block">VCC &rarr; 5V / 3.3V &bull; GND &rarr; GND</span>
-                  <span className="text-cyan-300 font-bold block">AOUT &rarr; GPIO 34 (ADC1)</span>
+                  <span className="text-cyan-400 font-bold block">1. NRF24L01 SPI CONNECTIONS</span>
+                  <span className="text-slate-300 block">CE &rarr; GPIO 4 &bull; CSN &rarr; GPIO 5</span>
+                  <span className="text-cyan-300 font-bold block">SCK &rarr; 18 &bull; MISO &rarr; 19 &bull; MOSI &rarr; 23</span>
+                  <span className="text-yellow-300 font-bold block">VCC &rarr; 3.3V (with 10µF Cap)</span>
                 </div>
                 <div className="bg-black p-2 border border-[#202736]">
-                  <span className="text-orange-400 font-bold block">2. DHT SENSOR (DHT11/22)</span>
-                  <span className="text-slate-300 block">VCC &rarr; 3.3V &bull; GND &rarr; GND</span>
-                  <span className="text-cyan-300 font-bold block">DATA &rarr; GPIO 4</span>
+                  <span className="text-orange-400 font-bold block">2. NRF24 RF CONFIGURATION</span>
+                  <span className="text-slate-300 block">Address: "00001" &bull; Channel: 108</span>
+                  <span className="text-slate-300 block">DataRate: 250 kbps &bull; PA: LOW</span>
+                  <span className="text-green-300 font-bold block">Rx Buffer: temp, hum, smoke</span>
                 </div>
                 <div className="bg-black p-2 border border-[#202736]">
-                  <span className="text-yellow-400 font-bold block">3. DISTANCE (HC-SR04)</span>
-                  <span className="text-slate-300 block">VCC &rarr; 5V &bull; GND &rarr; GND</span>
-                  <span className="text-cyan-300 font-bold block">TRIG &rarr; GPIO 5 &bull; ECHO &rarr; GPIO 18</span>
+                  <span className="text-purple-400 font-bold block">3. WI-FI HTTP SERVER</span>
+                  <span className="text-slate-300 block">SoftAP SSID: ESP32-WEATHER-STATION</span>
+                  <span className="text-cyan-300 font-bold block">Default Gateway: 192.168.4.1</span>
+                  <span className="text-amber-300 font-bold block">Endpoint: http://192.168.4.1/data</span>
                 </div>
               </div>
 
@@ -759,121 +762,195 @@ export const Esp32WifiModal: React.FC<Esp32WifiModalProps> = ({
 };
 
 export const ARDUINO_FIRMWARE_CODE = `/*
- * NMDC Central - ESP32 Wi-Fi Weather & Sensor Telemetry Node
- * Sensors:
- *   1. MQ-135 / MQ-2 Smoke & Gas Sensor -> GPIO 34 (ADC)
- *   2. DHT22 / DHT11 Temp & Humidity   -> GPIO 4
- *   3. HC-SR04 Ultrasonic Distance     -> TRIG: GPIO 5, ECHO: GPIO 18
+ * ==============================================================================
+ * ESP32 NRF24L01 RECEIVER & WI-FI TELEMETRY GATEWAY BRIDGE
+ * ==============================================================================
+ * NMDC Central - Bailadila Haul Dispatch System
  *
- * Provides:
- *   - Wi-Fi Access Point (SSID: "ESP32-WEATHER-STATION", IP: 192.168.4.1)
- *   - HTTP WebServer endpoint: http://192.168.4.1/data
- *   - Full CORS support (Access-Control-Allow-Origin: *)
+ * This code runs on your ESP32 Receiver:
+ *   1. Receives wireless packets from your field sensor node via NRF24L01 (2.4GHz RF)
+ *      - Temperature (°C)
+ *      - Humidity (%)
+ *      - Smoke (MQ Analog / PPM)
+ *      - Distance (Ultrasonic / Proximity)
+ *   2. Starts a Wi-Fi Access Point ("ESP32-WEATHER-STATION", IP: 192.168.4.1)
+ *      and/or connects to your local Wi-Fi router.
+ *   3. Runs a high-performance HTTP WebServer serving GET /data with CORS enabled.
+ *   4. Streams JSON telemetry directly into the NMDC Bailadila Dispatch Dashboard!
+ *
+ * Pin Connections (ESP32 to NRF24L01):
+ *   - CE   -> GPIO 4
+ *   - CSN  -> GPIO 5
+ *   - SCK  -> GPIO 18
+ *   - MISO -> GPIO 19
+ *   - MOSI -> GPIO 23
+ *   - VCC  -> 3.3V (Crucial: 3.3V ONLY, add a 10uF capacitor between VCC and GND)
+ *   - GND  -> GND
+ * ==============================================================================
  */
 
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
 #include <WiFi.h>
 #include <WebServer.h>
-#include <DHT.h>
 
-// PIN DEFINITIONS
-#define SMOKE_PIN 34       // MQ-135 / MQ-2 Analog pin
-#define DHT_PIN 4          // DHT22 or DHT11 Data pin
-#define DHT_TYPE DHT22     // Use DHT11 or DHT22
-#define TRIG_PIN 5         // Ultrasonic Trigger pin
-#define ECHO_PIN 18        // Ultrasonic Echo pin
+#define CE_PIN 4
+#define CSN_PIN 5
 
-DHT dht(DHT_PIN, DHT_TYPE);
+RF24 radio(CE_PIN, CSN_PIN);
+const byte address[6] = "00001";
+
+// Sensor Data Packet Structure matching Transmitter
+struct SensorData {
+  float temperature;
+  float humidity;
+  int smoke;
+};
+
+SensorData data;
+float distanceMm = 11.0; // Distance value (modify if your packet transmits distance)
+unsigned long packetsReceived = 0;
+unsigned long lastPacketTime = 0;
+
+// Web Server on port 80
 WebServer server(80);
 
 // Wi-Fi Configuration
-// Mode A: ESP32 creates its own Wi-Fi Hotspot (Access Point)
+// Mode A: ESP32 broadcasts its own Wi-Fi Hotspot (Access Point)
 const char* ap_ssid = "ESP32-WEATHER-STATION";
-const char* ap_password = ""; // Open network or set password min 8 chars
+const char* ap_password = ""; // Open Wi-Fi (connect directly with no password)
 
-// Mode B: Alternatively connect to your home/pit Wi-Fi router (uncomment if desired)
-// const char* sta_ssid = "YOUR_WIFI_SSID";
-// const char* sta_password = "YOUR_WIFI_PASSWORD";
-
-float readDistanceMeters() {
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  long duration = pulseIn(ECHO_PIN, HIGH, 30000); // 30ms timeout
-  if (duration <= 0) return 4.0; // fallback default
-  float distanceCm = (duration * 0.0343) / 2.0;
-  return distanceCm / 100.0; // return in meters
-}
+// Mode B: Local Wi-Fi Router (Uncomment and fill to connect to router instead)
+// const char* router_ssid = "YOUR_WIFI_NAME";
+// const char* router_password = "YOUR_WIFI_PASSWORD";
 
 void handleDataEndpoint() {
-  // Read Sensors
-  int smokeAdc = analogRead(SMOKE_PIN);
-  float smokePpm = (smokeAdc / 4095.0) * 1800.0 + 200.0;
-  float temperature = dht.readTemperature();
-  float humidity = dht.readHumidity();
-  float distanceM = readDistanceMeters();
+  // Convert distance from mm to meters for radar collision engine
+  float distanceMeters = distanceMm / 1000.0;
+  
+  // Convert smoke ADC to estimated PPM (0-4095 scale)
+  int smokeVal = data.smoke;
+  float smokePpm = (smokeVal > 2000) ? smokeVal : ((smokeVal / 4095.0) * 1800.0 + 200.0);
 
-  // Safety fallback for DHT NaN
-  if (isnan(temperature)) temperature = 26.5;
-  if (isnan(humidity)) humidity = 65.0;
-
-  // Build JSON Payload
+  // Build JSON Payload for Dashboard
   String json = "{";
-  json += "\\"smoke\\":" + String(smokeAdc) + ",";
+  json += "\\"temperature\\":" + String(data.temperature, 2) + ",";
+  json += "\\"humidity\\":" + String(data.humidity, 2) + ",";
+  json += "\\"temp\\":" + String(data.temperature, 2) + ",";
+  json += "\\"hum\\":" + String(data.humidity, 2) + ",";
+  json += "\\"smoke\\":" + String(data.smoke) + ",";
   json += "\\"smokePpm\\":" + String((int)smokePpm) + ",";
-  json += "\\"temp\\":" + String(temperature, 1) + ",";
-  json += "\\"hum\\":" + String(humidity, 1) + ",";
-  json += "\\"distance\\":" + String(distanceM, 2) + ",";
+  json += "\\"distance\\":" + String(distanceMeters, 3) + ",";
+  json += "\\"dist\\":" + String(distanceMeters, 3) + ",";
+  json += "\\"distanceMm\\":" + String(distanceMm, 1) + ",";
+  json += "\\"distanceCm\\":" + String(distanceMm / 10.0, 1) + ",";
+  json += "\\"packetsCount\\":" + String(packetsReceived) + ",";
+  json += "\\"source\\":\\"NRF24_BRIDGE\\",";
   json += "\\"status\\":\\"OK\\",";
-  json += "\\"uptime\\":" + String(millis() / 1000);
+  json += "\\"rssi\\":" + String(WiFi.RSSI()) + ",";
+  json += "\\"lastPacketAgeSec\\":" + String(lastPacketTime > 0 ? (millis() - lastPacketTime) / 1000 : 9999);
   json += "}";
 
-  // Send HTTP response with CORS headers for browser dashboard access
+  // Enable CORS so the browser dashboard can fetch from any origin
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "*");
   server.send(200, "application/json", json);
 }
 
 void handleOptions() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "*");
   server.send(204);
 }
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  Serial.println("\\n--- ESP32 Weather & Sensor Hub Starting ---");
+  delay(1500);
 
-  // Init Pins
-  pinMode(SMOKE_PIN, INPUT);
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  dht.begin();
+  Serial.println();
+  Serial.println("==================================================");
+  Serial.println(" ESP32 NRF24 RECEIVER & WI-FI TELEMETRY GATEWAY");
+  Serial.println(" NMDC Central - Bailadila Haul Dispatch System");
+  Serial.println("==================================================");
 
-  // Start Wi-Fi Access Point
-  WiFi.mode(WIFI_AP);
+  // 1. Initialize NRF24L01 Receiver
+  Serial.println("Starting NRF24...");
+  if (!radio.begin()) {
+    Serial.println("[ERROR] NRF24 NOT DETECTED! Check wiring (CE=4, CSN=5, 3.3V)");
+    while (1) {
+      delay(1000);
+    }
+  }
+
+  Serial.println("[OK] NRF24 DETECTED!");
+  radio.setChannel(108);
+  radio.setDataRate(RF24_250KBPS);
+  radio.setPALevel(RF24_PA_LOW);
+  radio.openReadingPipe(0, address);
+  radio.startListening();
+  Serial.println("[OK] NRF24 CONFIGURED & LISTENING on Channel 108");
+
+  // 2. Start Wi-Fi Access Point (SoftAP)
+  Serial.println("Starting Wi-Fi Access Point...");
+  WiFi.mode(WIFI_AP_STA);
   WiFi.softAP(ap_ssid, ap_password);
-  IPAddress IP = WiFi.softAPIP();
+  
+  // Optional: Connect to router if SSID specified
+  // WiFi.begin(router_ssid, router_password);
 
-  Serial.print("ESP32 SoftAP IP Address: ");
-  Serial.println(IP); // Normally 192.168.4.1
+  IPAddress myIP = WiFi.softAPIP();
+  Serial.print("[OK] Wi-Fi AP Online! SSID: ");
+  Serial.println(ap_ssid);
+  Serial.print("     Gateway IP Address : ");
+  Serial.println(myIP); // Default 192.168.4.1
 
-  // Set up Web Server routes
+  // 3. Configure Web Server Routes
   server.on("/data", HTTP_GET, handleDataEndpoint);
+  server.on("/data", HTTP_OPTIONS, handleOptions);
   server.on("/metrics", HTTP_GET, handleDataEndpoint);
   server.on("/", HTTP_GET, handleDataEndpoint);
-  server.on("/data", HTTP_OPTIONS, handleOptions);
-
   server.begin();
-  Serial.println("HTTP Server listening on port 80!");
+
+  Serial.println("[OK] HTTP Telemetry Server Started on Port 80");
+  Serial.println("==================================================");
+  Serial.println("RECEIVER READY - Connect PC/Phone to Wi-Fi:");
+  Serial.println("SSID: ESP32-WEATHER-STATION");
+  Serial.println("Dashboard URL: http://192.168.4.1/data");
+  Serial.println("==================================================");
 }
 
 void loop() {
+  // 1. Handle incoming Wi-Fi requests from dashboard
   server.handleClient();
+
+  // 2. Read wireless packets from NRF24
+  if (radio.available()) {
+    radio.read(&data, sizeof(data));
+    packetsReceived++;
+    lastPacketTime = millis();
+
+    Serial.println();
+    Serial.println("===== NRF24 SENSOR DATA RECEIVED =====");
+    Serial.print("Temperature : ");
+    Serial.print(data.temperature);
+    Serial.println(" °C");
+
+    Serial.print("Humidity    : ");
+    Serial.print(data.humidity);
+    Serial.println(" %");
+
+    Serial.print("Smoke       : ");
+    Serial.println(data.smoke);
+
+    Serial.print("Distance    : ");
+    Serial.print(distanceMm);
+    Serial.println(" mm");
+    Serial.println("======================================");
+  }
+
   delay(2);
 }
 `;
