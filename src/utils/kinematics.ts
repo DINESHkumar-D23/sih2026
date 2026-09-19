@@ -34,7 +34,7 @@ export const PASSING_BAY_BETA = { x: 220, y: 470, name: 'BAY 04-A (BENCH 07)', t
 export const HAUL_CHECKPOINTS = [
   {
     id: 'CP-01',
-    code: 'CP-1',
+    code: 'CP-01',
     name: 'Pit Floor Sump Gate',
     shortName: 'Pit Sump',
     progress: 0.08,
@@ -44,7 +44,7 @@ export const HAUL_CHECKPOINTS = [
   },
   {
     id: 'CP-02',
-    code: 'CP-2',
+    code: 'CP-02',
     name: 'Bench 08 Ramp Exit',
     shortName: 'Bench 08',
     progress: 0.25,
@@ -54,7 +54,7 @@ export const HAUL_CHECKPOINTS = [
   },
   {
     id: 'CP-03',
-    code: 'CP-3',
+    code: 'CP-03',
     name: 'Passing Bay Beta (04-A)',
     shortName: 'Bay Beta',
     progress: 0.42,
@@ -64,7 +64,7 @@ export const HAUL_CHECKPOINTS = [
   },
   {
     id: 'CP-04',
-    code: 'CP-4',
+    code: 'CP-04',
     name: 'Hairpin 3 Blind Apex',
     shortName: 'Hairpin 3',
     progress: 0.58,
@@ -74,7 +74,7 @@ export const HAUL_CHECKPOINTS = [
   },
   {
     id: 'CP-05',
-    code: 'CP-5',
+    code: 'CP-05',
     name: 'Passing Bay Alpha (07-B)',
     shortName: 'Bay Alpha',
     progress: 0.75,
@@ -84,7 +84,7 @@ export const HAUL_CHECKPOINTS = [
   },
   {
     id: 'CP-06',
-    code: 'CP-6',
+    code: 'CP-06',
     name: 'Crusher 1 Hopper Gate',
     shortName: 'Crusher Rim',
     progress: 0.92,

@@ -384,7 +384,7 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
         const cpMarkers = HAUL_CHECKPOINTS.map((cp) => {
           const pt = samplePointAtDistance(cp.progress * INCLINE_TRACK.totalLength);
           const gps = projectCanvasToGps(pt.x, pt.y, activeMine);
-          const isCp1 = cp.code === 'CP-1';
+          const isCp1 = cp.id === 'CP-01' || cp.code === 'CP-01' || cp.code === 'CP-1';
           const iotInfo = isCp1
             ? `<div style="margin-top:4px;padding:4px;background:#f0f9ff;border-left:3px solid #0284c7;font-size:10px;font-family:monospace;">` +
               `<b style="color:#0369a1;">ESP32 IoT Checkpoint Node (NODE1):</b><br/>` +
@@ -2013,89 +2013,140 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
           </div>
 
           {/* HAUL INCLINE ROUTE CHECKPOINTS TRANSIT TRACKER */}
-          <div className="bg-[#0A0A0B] border border-[#333338] p-3 flex flex-col gap-2 font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-[#26262b] pb-2">
+          <div className="bg-[#0A0A0E] border border-[#2b2b36] p-3.5 flex flex-col gap-3 font-mono text-xs shadow-md">
+            {/* Header with Title and Live ESP32 Checkpoint IoT Node Feed */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#24242d] pb-2.5">
               <div className="flex items-center gap-2">
-                <Flag className="w-4 h-4 text-cyan-400" />
-                <span className="font-bold text-white uppercase tracking-wider text-[11px] sm:text-xs">
-                  HAUL ROAD CHECKPOINT TRANSIT TRACKER (CP-01 to CP-06)
+                <Flag className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span className="font-bold text-white uppercase tracking-wider text-xs sm:text-sm whitespace-nowrap">
+                  HAUL ROAD CHECKPOINT TRANSIT TRACKER (CP-01 TO CP-06)
+                </span>
+                <span className="text-[10.5px] text-slate-400 hidden lg:inline font-sans">
+                  • Real-Time Hauler Crossing Status
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">LIVE DUMPER CROSSING STATUS</span>
+
+              {/* Dedicated Station IoT Telemetry Pill */}
+              <div className="flex items-center gap-2 px-2.5 py-1 bg-cyan-950/40 border border-cyan-500/50 rounded-xs text-[11px] text-slate-200">
+                <span className="flex items-center gap-1.5 text-cyan-300 font-bold whitespace-nowrap">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span>CP-01 PIT NODE:</span>
+                </span>
+                <span className="text-slate-100 font-bold whitespace-nowrap">
+                  {telemetry?.dht22.temperatureC.toFixed(1)}°C
+                </span>
+                <span className="text-cyan-600 font-bold">•</span>
+                <span className="text-slate-100 font-bold whitespace-nowrap">
+                  {telemetry?.dht22.humidityPercent}% RH
+                </span>
+                <span className="text-cyan-600 font-bold">•</span>
+                <span className="text-amber-300 font-bold whitespace-nowrap">
+                  MQ: {telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412} ADC
+                </span>
+              </div>
             </div>
 
-            {/* Checkpoints Sequence Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5">
+            {/* Checkpoints Sequence Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
               {checkpointPassageData.map((cp) => {
                 const isCrossedAny = cp.crossedCount > 0;
+                const isCp1 = cp.id === 'CP-01';
                 return (
                   <div
                     key={cp.id}
-                    className={`p-2 border flex flex-col gap-1 rounded-xs transition-all ${
+                    className={`p-3 border flex flex-col justify-between gap-2.5 rounded-xs transition-all ${
                       isCrossedAny
-                        ? 'bg-[#0e1726]/80 border-cyan-500/60 shadow-xs'
-                        : 'bg-[#111114] border-[#27272f]'
+                        ? 'bg-[#0b1424]/90 border-cyan-500/60 shadow-sm'
+                        : 'bg-[#111116] border-[#25252e]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-cyan-300 text-[11px] flex items-center gap-1">
-                        <span>{cp.code}</span>
+                    {/* Top Row: Checkpoint Code & Passed Status */}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-cyan-300 text-xs sm:text-[13px] tracking-wide whitespace-nowrap flex items-center gap-1">
+                        <Flag className="w-3 h-3 text-cyan-400 shrink-0" />
+                        <span>{cp.id}</span>
                       </span>
                       <span
-                        className={`text-[9px] px-1 py-0.2 font-bold rounded-xs ${
-                          isCrossedAny ? 'bg-cyan-900 text-cyan-200 border border-cyan-600' : 'bg-black/60 text-slate-400'
+                        className={`text-[10px] px-1.5 py-0.5 font-bold rounded-xs whitespace-nowrap ${
+                          isCrossedAny
+                            ? 'bg-cyan-900/80 text-cyan-100 border border-cyan-500'
+                            : 'bg-black/60 text-slate-400 border border-slate-700'
                         }`}
                       >
                         {cp.crossedCount} PASSED
                       </span>
                     </div>
 
-                    <div className="text-[10px] text-slate-300 font-semibold truncate" title={cp.name}>
-                      {cp.shortName}
+                    {/* Checkpoint Name & Description */}
+                    <div className="flex flex-col">
+                      <div className="text-xs sm:text-[13px] text-slate-100 font-bold truncate" title={cp.name}>
+                        {cp.shortName}
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate" title={cp.description}>
+                        {cp.name}
+                      </div>
                     </div>
 
-                    <div className="flex justify-between items-center text-[9px] text-slate-400">
-                      <span>RL {cp.elevationRL}m</span>
-                      <span className="text-yellow-400 font-semibold">{cp.speedLimitKmh}k cap</span>
+                    {/* Elevation and Speed Limit Tag */}
+                    <div className="flex items-center justify-between gap-1 text-[10.5px] py-1 px-2 bg-black/50 rounded-xs border border-[#23232c] whitespace-nowrap">
+                      <span className="text-slate-300 font-medium">RL {cp.elevationRL}m</span>
+                      <span className="text-amber-400 font-bold">{cp.speedLimitKmh} km/h</span>
                     </div>
 
                     {/* Dumpers that crossed this checkpoint */}
-                    <div className="mt-1 pt-1 border-t border-[#1f2937] flex flex-wrap gap-1 min-h-[22px] items-center">
-                      {cp.crossedVehicles.length > 0 ? (
-                        cp.crossedVehicles.slice(0, 3).map((v) => (
-                          <span
-                            key={v.id}
-                            onClick={() => onSelectVehicle(v)}
-                            className={`text-[9px] font-bold px-1 py-0.2 rounded-xs border cursor-pointer hover:scale-105 transition-transform ${
-                              v.direction === 1
-                                ? 'bg-blue-950 text-blue-200 border-blue-600'
-                                : 'bg-green-950 text-green-200 border-green-600'
-                            }`}
-                            title={`Inspect ${v.id} (${v.direction === 1 ? 'Uphill Loaded' : 'Downhill Empty'}, ${v.speedKmh.toFixed(0)} km/h)`}
-                          >
-                            {v.id} {v.direction === 1 ? '↑' : '↓'}
+                    <div className="pt-1.5 border-t border-[#1f2937] flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-[9.5px] text-slate-400">
+                        <span>UNITS PASSED:</span>
+                        {cp.crossedVehicles.length > 0 && (
+                          <span className="text-cyan-400 font-bold">{cp.crossedVehicles.length} units</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1 min-h-[26px] items-center">
+                        {cp.crossedVehicles.length > 0 ? (
+                          cp.crossedVehicles.slice(0, 3).map((v) => (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => onSelectVehicle(v)}
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-xs border cursor-pointer hover:scale-105 transition-transform flex items-center gap-0.5 whitespace-nowrap ${
+                                v.direction === 1
+                                  ? 'bg-blue-950 text-blue-200 border-blue-600 hover:bg-blue-900'
+                                  : 'bg-emerald-950 text-emerald-200 border-emerald-600 hover:bg-emerald-900'
+                              }`}
+                              title={`Inspect ${v.id} (${v.direction === 1 ? 'Uphill Loaded' : 'Downhill Empty'}, ${v.speedKmh.toFixed(0)} km/h)`}
+                            >
+                              <span>{v.id}</span>
+                              <span className="text-[11px] font-bold">{v.direction === 1 ? '↑' : '↓'}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-500 italic">None yet</span>
+                        )}
+                        {cp.crossedVehicles.length > 3 && (
+                          <span className="text-[10px] text-slate-300 font-bold bg-[#1b1b24] px-1 py-0.5 rounded-xs border border-slate-700">
+                            +{cp.crossedVehicles.length - 3}
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-[9px] text-slate-500 italic">None yet</span>
-                      )}
-                      {cp.crossedVehicles.length > 3 && (
-                        <span className="text-[9px] text-slate-300">+{cp.crossedVehicles.length - 3}</span>
-                      )}
+                        )}
+                      </div>
                     </div>
 
-                    {/* ESP32 Checkpoint IoT Node live sensor ribbon */}
-                    {cp.code === 'CP-1' && (
-                      <div className="mt-1 pt-1 border-t border-[#1f2937] flex items-center justify-between text-[9px] bg-cyan-950/40 px-1.5 py-0.5 rounded-xs border border-cyan-500/40">
-                        <span className="text-cyan-300 font-bold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                          <span>ESP32:</span>
-                        </span>
-                        <span className="text-slate-200 font-mono">
-                          {telemetry?.dht22.temperatureC.toFixed(1)}°C &bull; {telemetry?.dht22.humidityPercent}% &bull; MQ:{telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412}
-                        </span>
-                      </div>
-                    )}
+                    {/* Bottom Status / Micro-Telemetry Footer */}
+                    <div className="pt-1.5 border-t border-[#1f2937]/60 flex items-center justify-between text-[9.5px] font-mono">
+                      {isCp1 ? (
+                        <div className="w-full flex items-center justify-between bg-cyan-950/40 px-1.5 py-0.5 rounded-xs border border-cyan-500/30 text-cyan-300">
+                          <span className="flex items-center gap-1 font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                            <span>ESP32 IOT</span>
+                          </span>
+                          <span className="text-slate-300 font-medium">NODE 1</span>
+                        </div>
+                      ) : (
+                        <div className="w-full flex items-center justify-between px-1 text-slate-500">
+                          <span>Progress</span>
+                          <span>{Math.round(cp.progress * 100)}% of Ramp</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -2290,79 +2341,84 @@ export const RadarScreen: React.FC<RadarScreenProps> = ({
 
           {/* Content: CARD (Route Checkpoint Passing & Berm Speed Audit) */}
           {(rightTab === 'checkpoints' || rightTab === 'all') && (
-            <div className="bg-[#0A0A0B] border border-[#333338] p-3 flex flex-col gap-2 font-mono text-xs overflow-y-auto max-h-[500px]">
+            <div className="bg-[#0A0A0E] border border-[#2b2b36] p-3 flex flex-col gap-2.5 font-mono text-xs overflow-y-auto max-h-[500px]">
               <div className="flex items-center justify-between border-b border-[#26262b] pb-2">
                 <div className="flex items-center gap-2">
                   <Flag className="w-4 h-4 text-cyan-400" />
-                  <span className="font-bold text-white uppercase tracking-wider text-[11px]">
+                  <span className="font-bold text-white uppercase tracking-wider text-xs whitespace-nowrap">
                     ROUTE CHECKPOINTS (CP-01 to 06)
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400">PASS AUDIT</span>
+                <span className="text-[10px] text-slate-400 font-sans">PASS AUDIT</span>
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {checkpointPassageData.map((cp) => {
                   const isCrossedAny = cp.crossedCount > 0;
+                  const isCp1 = cp.id === 'CP-01';
                   return (
                     <div
                       key={cp.id}
-                      className={`p-2 border flex flex-col gap-1 rounded-xs transition-all ${
+                      className={`p-2.5 border flex flex-col gap-1.5 rounded-xs transition-all ${
                         isCrossedAny
-                          ? 'bg-[#0e1726]/80 border-cyan-500/60 shadow-xs'
-                          : 'bg-[#111114] border-[#27272f]'
+                          ? 'bg-[#0b1424]/90 border-cyan-500/60 shadow-xs'
+                          : 'bg-[#111116] border-[#25252e]'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-cyan-300 text-[11px] flex items-center gap-1">
-                          <span>{cp.code}</span>
-                          <span className="text-slate-400 text-[10px]">({cp.shortName})</span>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-cyan-300 text-xs flex items-center gap-1.5 whitespace-nowrap">
+                          <span>{cp.id}</span>
+                          <span className="text-slate-200 font-semibold truncate max-w-[120px]">
+                            {cp.shortName}
+                          </span>
                         </span>
                         <span
-                          className={`text-[9px] px-1 py-0.2 font-bold rounded-xs ${
-                            isCrossedAny ? 'bg-cyan-900 text-cyan-200 border border-cyan-600' : 'bg-black/60 text-slate-400'
+                          className={`text-[10px] px-1.5 py-0.5 font-bold rounded-xs whitespace-nowrap ${
+                            isCrossedAny ? 'bg-cyan-900/80 text-cyan-200 border border-cyan-500' : 'bg-black/60 text-slate-400 border border-slate-700'
                           }`}
                         >
                           {cp.crossedCount} PASSED
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center text-[9px] text-slate-400">
+                      <div className="flex justify-between items-center text-[10px] text-slate-300 font-mono py-0.5 px-1.5 bg-black/40 rounded border border-[#23232c]">
                         <span>RL {cp.elevationRL}m</span>
-                        <span className="text-yellow-400 font-semibold">{cp.speedLimitKmh} km/h cap</span>
+                        <span className="text-amber-400 font-semibold">Max {cp.speedLimitKmh} km/h</span>
                       </div>
 
                       {/* Dumpers that crossed this checkpoint */}
-                      <div className="mt-1 pt-1 border-t border-[#1f2937] flex flex-wrap gap-1 min-h-[22px] items-center">
+                      <div className="mt-1 pt-1 border-t border-[#1f2937] flex flex-wrap gap-1 min-h-[24px] items-center">
                         {cp.crossedVehicles.length > 0 ? (
                           cp.crossedVehicles.slice(0, 4).map((v) => (
-                            <span
+                            <button
                               key={v.id}
+                              type="button"
                               onClick={() => onSelectVehicle(v)}
-                              className={`text-[9px] font-bold px-1 py-0.2 rounded-xs border cursor-pointer hover:scale-105 transition-transform ${
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-xs border cursor-pointer hover:scale-105 transition-transform flex items-center gap-0.5 whitespace-nowrap ${
                                 v.direction === 1
-                                  ? 'bg-blue-950 text-blue-200 border-blue-600'
-                                  : 'bg-green-950 text-green-200 border-green-600'
+                                  ? 'bg-blue-950 text-blue-200 border-blue-600 hover:bg-blue-900'
+                                  : 'bg-emerald-950 text-emerald-200 border-emerald-600 hover:bg-emerald-900'
                               }`}
                               title={`Inspect ${v.id} (${v.direction === 1 ? 'Uphill Loaded' : 'Downhill Empty'}, ${v.speedKmh.toFixed(0)} km/h)`}
                             >
-                              {v.id} {v.direction === 1 ? '↑' : '↓'}
-                            </span>
+                              <span>{v.id}</span>
+                              <span className="text-[11px] font-bold">{v.direction === 1 ? '↑' : '↓'}</span>
+                            </button>
                           ))
                         ) : (
-                          <span className="text-[9px] text-slate-500 italic">No units passed yet</span>
+                          <span className="text-[10px] text-slate-500 italic">No units passed yet</span>
                         )}
                       </div>
 
                       {/* ESP32 Checkpoint IoT Node live sensor ribbon */}
-                      {cp.code === 'CP-1' && (
-                        <div className="mt-1 pt-1 border-t border-[#1f2937] flex items-center justify-between text-[9px] bg-cyan-950/40 px-1.5 py-0.5 rounded-xs border border-cyan-500/40">
-                          <span className="text-cyan-300 font-bold flex items-center gap-1">
+                      {isCp1 && (
+                        <div className="mt-1 pt-1 border-t border-[#1f2937] flex items-center justify-between text-[10px] bg-cyan-950/40 px-2 py-0.5 rounded-xs border border-cyan-500/40">
+                          <span className="text-cyan-300 font-bold flex items-center gap-1 whitespace-nowrap">
                             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
                             <span>ESP32 IOT:</span>
                           </span>
-                          <span className="text-slate-200 font-mono">
-                            {telemetry?.dht22.temperatureC.toFixed(1)}°C &bull; {telemetry?.dht22.humidityPercent}% &bull; MQ:{telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412} ADC
+                          <span className="text-slate-200 font-mono whitespace-nowrap">
+                            {telemetry?.dht22.temperatureC.toFixed(1)}°C &bull; {telemetry?.dht22.humidityPercent}% &bull; MQ:{telemetry?.mq135.rawAdc ?? telemetry?.checkpointStation?.mq135Adc ?? 412}
                           </span>
                         </div>
                       )}
